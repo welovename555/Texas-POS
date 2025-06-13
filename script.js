@@ -1,594 +1,522 @@
-// ========== TEXAS STOCK MANAGEMENT v2.1 - STABILITY PATCH ==========
+// ===================================================================================
+// SCRIPT.JS - For Multi-Page POS Application with Supabase
+// ===================================================================================
 
-// ========== SUPABASE & GLOBAL CONFIG ==========
+// --- SUPABASE SETUP ---
+const { createClient } = supabase;
 const SUPABASE_URL = 'https://imohhlypiuhnbpumlgli.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imltb2hobHlwaXVobmJwdW1sZ2xpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3NzgxMTMsImV4cCI6MjA2NTM1NDExM30.amsdnGl15xWzgdLxlRZOSJL-mIOfZ2-P7ST5cEyLt10';
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imltb2hobHlwaXVobmJwdW1sZ2xpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3NzgxMTMsImV4cCI6MjA2NTM1NDExM30.amsdnGl15xWzgdLxlRZOSJL-mIOfZ2-P7ST5cEyLt10';
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const ALLOWED_EMPLOYEE_IDS = ['101', '190343', '103', '2483'];
-const ADMIN_ID = '2483';
-
-// ========== GLOBAL STATE & CHART INSTANCES ==========
+// --- GLOBAL STATE ---
+// We use sessionStorage for cart data to persist across page loads within a session
 let state = {
     products: [],
     categories: [],
-    salesLog: [],
-    filteredProducts: [],
-};
-let charts = {
-    dailySalesChart: null,
-    topProductsChart: null,
-};
-let productUpdateChannel = null;
-
-
-// ========== UTILITY & HELPER FUNCTIONS ==========
-const utils = {
-    getUser: () => JSON.parse(localStorage.getItem('texasUser')),
-    // *** IMPROVED LOGOUT FUNCTION ***
-    logout: () => {
-        if (productUpdateChannel) {
-            supabase.removeChannel(productUpdateChannel);
-            productUpdateChannel = null;
-        }
-        localStorage.removeItem('texasUser');
-        // A more forceful redirect to ensure no cached pages are shown
-        window.location.replace('login.html');
-    },
-    showLoader: () => document.getElementById('loader')?.classList.add('show'),
-    hideLoader: () => document.getElementById('loader')?.classList.remove('show'),
-    showToast: (message, type = 'success') => {
-        const container = document.getElementById('toast-container');
-        if (!container) return;
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.textContent = message;
-        container.appendChild(toast);
-        setTimeout(() => toast.classList.add('show'), 10);
-        setTimeout(() => {
-            toast.classList.remove('show');
-            toast.addEventListener('transitionend', () => toast.remove());
-        }, 5000);
-    },
-    createParticles: () => {
-        const container = document.getElementById('particle-container');
-        if (!container || container.children.length > 0) return;
-        const count = 50;
-        for (let i = 0; i < count; i++) {
-            const p = document.createElement('div');
-            p.className = 'particle';
-            p.style.left = `${Math.random() * 100}vw`;
-            p.style.animationDelay = `${Math.random() * 20}s`;
-            p.style.animationDuration = `${10 + Math.random() * 10}s`;
-            const size = `${2 + Math.random() * 3}px`;
-            p.style.width = size;
-            p.style.height = size;
-            p.style.setProperty('--x-start', `${Math.random() * 10 - 5}vw`);
-            p.style.setProperty('--x-end', `${Math.random() * 10 - 5}vw`);
-            container.appendChild(p);
-        }
-    },
-    setupNavbar: (user) => {
-        if (!user) return;
-        const nameEl = document.getElementById('salesperson-name-nav');
-        const logoutBtn = document.getElementById('logout-btn');
-        if (nameEl) nameEl.textContent = user.employee_id;
-        if (logoutBtn) {
-             // Remove old listener to prevent duplicates
-            logoutBtn.replaceWith(logoutBtn.cloneNode(true));
-            document.getElementById('logout-btn').addEventListener('click', (e) => {
-                e.preventDefault();
-                utils.logout();
-            });
-        }
-    },
-    formatCurrency: (amount) => `฿${parseFloat(amount || 0).toFixed(2)}`,
+    activeCategory: 'ทั้งหมด',
+    currentUser: sessionStorage.getItem('pos-user') || null
 };
 
-// ========== PAGE INITIALIZATION ROUTER ==========
-document.addEventListener('DOMContentLoaded', () => {
-    utils.createParticles();
-    
-    // *** NEW AUTHENTICATION FLOW ***
-    // This is the core of the fix. It centralizes the auth check.
-    const user = utils.getUser();
-    const onLoginPage = document.body.id === 'login-page';
+// --- DOM ELEMENTS (COMMON) ---
+const loaderOverlay = document.getElementById('loader-overlay');
+const appView = document.getElementById('app-view');
+const modalContainer = document.getElementById('modal-container');
+const modalContent = document.getElementById('modal-content');
 
-    if (onLoginPage) {
-        // If on login page, check if a user is already logged in. If so, redirect.
-        if (user) {
-            window.location.replace('index.html');
-        } else {
-            pages.login(); // Only initialize login page if no user
-        }
-    } else {
-        // For all other pages, a user MUST exist.
-        if (!user) {
-            window.location.replace('login.html');
-            return; // Stop further execution
-        }
-        
-        // If user exists, setup common elements and then run page-specific code
-        utils.setupNavbar(user);
-        const pageId = document.body.id;
-        switch (pageId) {
-            case 'pos-page': pages.pos(); break;
-            case 'manage-products-page': pages.manageProducts(); break;
-            case 'restock-page': pages.restock(); break;
-            case 'sales-history-page': pages.salesHistory(); break;
-            case 'product-summary-page': pages.productSummary(); break;
-        }
+// --- UTILITY FUNCTIONS ---
+const showLoader = () => loaderOverlay?.classList.remove('hidden');
+const hideLoader = () => loaderOverlay?.classList.add('hidden');
+
+const showNotification = (message, type = 'info') => {
+    const colors = {
+        info: 'bg-blue-500', success: 'bg-green-500',
+        warning: 'bg-yellow-500', error: 'bg-red-500',
+    };
+    const notification = document.createElement('div');
+    notification.className = `fixed bottom-5 right-5 ${colors[type]} text-white py-3 px-5 rounded-lg shadow-xl transform translate-y-20 opacity-0 transition-all duration-300 ease-out z-[10000]`;
+    notification.innerHTML = `<p>${message}</p>`;
+    document.body.appendChild(notification);
+    setTimeout(() => notification.classList.remove('translate-y-20', 'opacity-0'), 100);
+    setTimeout(() => {
+        notification.classList.add('translate-y-20', 'opacity-0');
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+};
+
+const showModal = () => {
+    if(!modalContainer) return;
+    modalContainer.classList.remove('hidden');
+    setTimeout(() => {
+        modalContainer.classList.add('opacity-100');
+        modalContent?.classList.add('scale-100');
+    }, 10);
+};
+
+const hideModal = () => {
+    if(!modalContainer) return;
+    modalContainer.classList.remove('opacity-100');
+    modalContent?.classList.remove('scale-100');
+    setTimeout(() => {
+        modalContainer.classList.add('hidden');
+        if(modalContent) modalContent.innerHTML = '';
+    }, 300);
+};
+
+const showConfirmation = (message, onConfirm) => {
+    if(!modalContent) return;
+    modalContent.innerHTML = `
+        <h3 class="text-lg font-bold mb-4">ยืนยันการกระทำ</h3>
+        <p>${message}</p>
+        <div class="mt-6 flex justify-end gap-3">
+            <button class="cancel-modal-btn py-2 px-4 bg-slate-200 rounded-md font-semibold hover:bg-slate-300">ยกเลิก</button>
+            <button id="confirm-ok" class="py-2 px-4 bg-red-600 text-white rounded-md font-semibold hover:bg-red-700">ยืนยัน</button>
+        </div>
+    `;
+    showModal();
+    document.getElementById('confirm-ok').onclick = () => {
+        hideModal();
+        onConfirm();
+    };
+    document.querySelector('.cancel-modal-btn').onclick = hideModal;
+};
+
+
+// --- DATA FETCHING ---
+async function fetchProducts() {
+    showLoader();
+    const { data, error } = await db.from('products').select('*').order('product_name', { ascending: true });
+    hideLoader();
+    if (error) {
+        console.error('Error fetching products:', error);
+        showNotification('ไม่สามารถโหลดข้อมูลสินค้าได้', 'error');
+        return;
     }
-});
+    state.products = data.map(p => ({
+        id: p.id,
+        name: p.product_name,
+        stock: p.quantity,
+        price: p.price,
+        category: p.category
+    }));
+    const categories = [...new Set(state.products.map(p => p.category || 'ไม่มีหมวดหมู่'))];
+    state.categories = ['ทั้งหมด', ...categories];
+}
 
+// --- CART MANAGEMENT (using sessionStorage) ---
+function getCart() {
+    return JSON.parse(sessionStorage.getItem('pos-cart')) || [];
+}
+function saveCart(cart) {
+    sessionStorage.setItem('pos-cart', JSON.stringify(cart));
+}
 
-// ========== PAGE-SPECIFIC LOGIC & RENDERERS ==========
-const pages = {
-    // ===== LOGIN PAGE =====
-    login: () => {
-        const form = document.getElementById('login-form');
-        form.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const id = e.target.elements['employee-id'].value.trim();
-            if (ALLOWED_EMPLOYEE_IDS.includes(id)) {
-                localStorage.setItem('texasUser', JSON.stringify({ employee_id: id, isAdmin: id === ADMIN_ID }));
-                window.location.replace('index.html'); // Use replace to prevent going back to login
-            } else {
-                document.getElementById('error-message').style.display = 'block';
-            }
-        });
-    },
+// --- PAGE-SPECIFIC RENDER FUNCTIONS ---
 
-    // ===== POINT OF SALE (POS) PAGE =====
-    pos: () => {
-        const productGrid = document.getElementById('product-grid');
-        const categoryTabsContainer = document.getElementById('category-tabs');
-        const searchInput = document.getElementById('product-search');
+// POS Page (index.html)
+async function renderPosPage() {
+    await fetchProducts();
+    renderCategoryFilters();
+    renderProductList();
+    renderCart();
+}
 
-        const renderProducts = (productsToRender = state.filteredProducts) => {
-            productGrid.innerHTML = '';
-            if (productsToRender.length === 0) {
-                productGrid.innerHTML = `<p style="color: var(--text-secondary-muted);">ไม่พบสินค้าที่ตรงกัน</p>`;
-                return;
-            }
-            productsToRender.forEach(p => {
-                const card = document.createElement('div');
-                card.className = 'product-card';
-                card.dataset.productId = p.id;
-                card.innerHTML = `
-                    <div class="product-name">${p.product_name}</div>
-                    <div class="product-price">${utils.formatCurrency(p.price)}</div>
-                    <div class="product-quantity">คงเหลือ: ${p.quantity}</div>
-                `;
-                if (p.quantity > 0) {
-                    card.addEventListener('click', () => pages.helpers.openSaleModal(p));
-                } else {
-                    card.style.cursor = 'not-allowed';
-                    card.style.opacity = '0.5';
-                }
-                productGrid.appendChild(card);
-            });
+function renderCategoryFilters() {
+    const container = document.getElementById('category-filters');
+    if (!container) return;
+    container.innerHTML = '';
+    state.categories.forEach(cat => {
+        const button = document.createElement('button');
+        button.textContent = cat;
+        button.className = `category-btn px-4 py-2 text-sm font-semibold border rounded-full transition-colors ${state.activeCategory === cat ? 'active' : 'bg-white text-slate-700 hover:bg-slate-100'}`;
+        button.onclick = () => {
+            state.activeCategory = cat;
+            renderCategoryFilters();
+            renderProductList();
         };
+        container.appendChild(button);
+    });
+}
 
-        const renderCategories = () => {
-            categoryTabsContainer.innerHTML = '';
-            ['ทั้งหมด', ...state.categories].forEach((cat, index) => {
-                const tab = document.createElement('div');
-                tab.className = 'tab-item';
-                if (index === 0) tab.classList.add('active');
-                tab.textContent = cat;
-                tab.dataset.category = cat;
-                tab.addEventListener('click', () => {
-                    document.querySelector('.tab-item.active')?.classList.remove('active');
-                    tab.classList.add('active');
-                    filterAndRender();
-                });
-                categoryTabsContainer.appendChild(tab);
-            });
-        };
+function renderProductList() {
+    const container = document.getElementById('product-list');
+    if (!container) return;
+    container.innerHTML = '';
+    const filteredProducts = state.activeCategory === 'ทั้งหมด'
+        ? state.products
+        : state.products.filter(p => p.category === state.activeCategory);
 
-        const filterAndRender = () => {
-            const searchTerm = searchInput.value.toLowerCase();
-            const activeCategory = document.querySelector('.tab-item.active')?.dataset.category;
-            
-            state.filteredProducts = state.products.filter(p => {
-                const matchesSearch = p.product_name.toLowerCase().includes(searchTerm);
-                const matchesCategory = activeCategory === 'ทั้งหมด' || p.category === activeCategory;
-                return matchesSearch && matchesCategory;
-            });
-            renderProducts();
-        };
-
-        searchInput.addEventListener('input', filterAndRender);
-
-        const fetchAllProducts = async () => {
-            utils.showLoader();
-            const { data, error } = await supabase.from('products').select('*').order('product_name');
-            if (error) {
-                utils.showToast('เกิดข้อผิดพลาดในการโหลดสินค้า', 'error');
-                console.error(error);
-            } else {
-                state.products = data;
-                state.categories = [...new Set(data.map(p => p.category))].sort();
-                renderCategories();
-                filterAndRender();
-            }
-            utils.hideLoader();
-        };
-        
-        fetchAllProducts();
-        pages.helpers.listenToProductChanges(fetchAllProducts); // Real-time updates
-        pages.helpers.setupSaleModal(); // Setup modal listeners
-    },
-
-    // ===== MANAGE PRODUCTS PAGE =====
-    manageProducts: () => {
-        const user = utils.getUser();
-        const tableBody = document.querySelector('#product-table tbody');
-        const searchInput = document.getElementById('manage-product-search');
-        
-        if (user.isAdmin) {
-            document.getElementById('add-product-section').style.display = 'block';
-            pages.helpers.setupAddProductForm();
-        }
-
-        const renderTable = (productsToRender = state.products) => {
-            tableBody.innerHTML = '';
-            productsToRender.forEach(p => {
-                const row = document.createElement('tr');
-                row.dataset.productId = p.id;
-                row.innerHTML = `
-                    <td>${p.id}</td>
-                    <td>${p.product_name}</td>
-                    <td>${p.quantity}</td>
-                    <td>${utils.formatCurrency(p.price)}</td>
-                    <td>${p.category || '-'}</td>
-                    <td class="action-links">
-                        <a href="#" class="delete-link" data-id="${p.id}">ลบ</a>
-                    </td>
-                `;
-                tableBody.appendChild(row);
-            });
-            document.querySelectorAll('.delete-link').forEach(btn => btn.addEventListener('click', pages.helpers.deleteProduct));
-        };
-
-        const filterAndRender = () => {
-            const searchTerm = searchInput.value.toLowerCase();
-            const filtered = state.products.filter(p => 
-                p.product_name.toLowerCase().includes(searchTerm) ||
-                p.category?.toLowerCase().includes(searchTerm)
-            );
-            renderTable(filtered);
-        };
-        
-        searchInput.addEventListener('input', filterAndRender);
-        
-        const fetchAllProducts = async () => {
-            utils.showLoader();
-            const { data, error } = await supabase.from('products').select('*').order('id');
-            if (error) {
-                utils.showToast('โหลดข้อมูลสินค้าล้มเหลว', 'error');
-            } else {
-                state.products = data;
-                renderTable();
-            }
-            utils.hideLoader();
-        };
-
-        fetchAllProducts();
-        pages.helpers.listenToProductChanges(fetchAllProducts, (updatedRowId) => {
-             // Highlight updated row
-            const row = tableBody.querySelector(`tr[data-product-id='${updatedRowId}']`);
-            if(row) {
-                row.classList.add('row-updated');
-                setTimeout(() => row.classList.remove('row-updated'), 1500);
-            }
-        });
-    },
-    
-    // ===== RESTOCK PAGE =====
-    restock: async () => {
-        const select = document.getElementById('restock-product-select');
-        const form = document.getElementById('restock-form');
-        
-        utils.showLoader();
-        const { data: products, error } = await supabase.from('products').select('id, product_name').order('product_name');
-        utils.hideLoader();
-        
-        if (error) return utils.showToast('ไม่สามารถโหลดรายการสินค้า', 'error');
-
-        products.forEach(p => {
-            const option = document.createElement('option');
-            option.value = p.id;
-            option.textContent = p.product_name;
-            select.appendChild(option);
-        });
-
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const productId = select.value;
-            const quantityToAdd = parseInt(document.getElementById('restock-quantity').value);
-
-            if (!productId || !quantityToAdd || quantityToAdd <= 0) {
-                return utils.showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'error');
-            }
-            
-            utils.showLoader();
-            const { error: rpcError } = await supabase.rpc('add_stock', {
-                product_id_to_update: productId,
-                quantity_to_add: quantityToAdd
-            });
-            utils.hideLoader();
-            
-            if (rpcError) {
-                utils.showToast('เติมสต็อกล้มเหลว', 'error');
-                console.error(rpcError);
-            } else {
-                utils.showToast('เติมสต็อกสินค้าสำเร็จ');
-                form.reset();
-            }
-        });
-    },
-    
-    // ===== SALES HISTORY PAGE =====
-    salesHistory: async () => {
-        utils.showLoader();
-        const today = new Date();
-        const todayStart = new Date(today.setHours(0, 0, 0, 0)).toISOString();
-        const todayEnd = new Date(today.setHours(23, 59, 59, 999)).toISOString();
-
-        document.getElementById('today-date').textContent = new Date().toLocaleDateString('th-TH');
-
-        const { data, error } = await supabase.from('sales_log').select(`*, products (product_name)`)
-            .gte('created_at', todayStart).lte('created_at', todayEnd).order('created_at', { ascending: false });
-        utils.hideLoader();
-
-        if (error) return utils.showToast('ไม่สามารถโหลดประวัติการขาย', 'error');
-        
-        const body = document.getElementById('sales-log-body');
-        body.innerHTML = '';
-        let totalCash = 0, totalTransfer = 0;
-
-        data.forEach(sale => {
-            const saleTotal = sale.total_amount;
-            if (sale.payment_method === 'เงินสด') totalCash += saleTotal;
-            else totalTransfer += saleTotal;
-
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${new Date(sale.created_at).toLocaleTimeString('th-TH')}</td>
-                <td>${sale.products.product_name}</td>
-                <td style="text-align: center;">${sale.quantity_sold}</td>
-                <td class="${sale.payment_method === 'เงินสด' ? 'cash' : 'transfer'}" style="text-align: center;">${sale.payment_method}</td>
-                <td style="text-align: right;">${utils.formatCurrency(saleTotal)}</td>
-                <td style="text-align: center;">${sale.salesperson_name}</td>
+    if (filteredProducts.length === 0) {
+        container.innerHTML = '<p class="col-span-full text-center text-slate-400">ไม่พบสินค้าในหมวดหมู่นี้</p>';
+        return;
+    }
+    filteredProducts.forEach(p => {
+        if (p.stock > 0) {
+            const productCard = document.createElement('div');
+            productCard.className = `product-card bg-slate-50 rounded-lg p-3 text-center cursor-pointer flex flex-col items-center`;
+            productCard.dataset.productId = p.id;
+            productCard.innerHTML = `
+                <img src="https://placehold.co/150x150/a78bfa/ffffff?text=${encodeURIComponent(p.name)}" alt="${p.name}" class="w-24 h-24 object-cover rounded-md mb-2">
+                <p class="font-semibold text-sm flex-grow">${p.name}</p>
+                <p class="text-indigo-600 font-bold">฿${Number(p.price).toFixed(2)}</p>
+                <p class="text-xs ${p.stock < 10 ? 'text-red-500 font-bold' : 'text-slate-400'}">คงเหลือ: ${p.stock}</p>
             `;
-            body.appendChild(row);
+            productCard.addEventListener('click', () => addToCart(p.id));
+            container.appendChild(productCard);
+        }
+    });
+}
+
+function renderCart() {
+    const cartItemsEl = document.getElementById('cart-items');
+    const cartTotalEl = document.getElementById('cart-total');
+    if (!cartItemsEl || !cartTotalEl) return;
+
+    const cart = getCart();
+    if (cart.length === 0) {
+        cartItemsEl.innerHTML = '<p class="text-slate-400 text-center mt-8">ยังไม่มีสินค้าในตะกร้า</p>';
+    } else {
+        cartItemsEl.innerHTML = '';
+        cart.forEach(item => {
+            const cartItemDiv = document.createElement('div');
+            cartItemDiv.className = 'flex justify-between items-center mb-3 p-2 rounded-md hover:bg-slate-50';
+            cartItemDiv.innerHTML = `
+                <div><p class="font-semibold">${item.name}</p><p class="text-sm text-slate-500">฿${Number(item.price).toFixed(2)}</p></div>
+                <div class="flex items-center gap-2">
+                    <button class="quantity-change-btn w-6 h-6 bg-slate-200 rounded-full" data-product-id="${item.productId}" data-change="-1">-</button>
+                    <span>${item.quantity}</span>
+                    <button class="quantity-change-btn w-6 h-6 bg-slate-200 rounded-full" data-product-id="${item.productId}" data-change="1">+</button>
+                    <button class="remove-item-btn text-red-500 hover:text-red-700 ml-2" data-product-id="${item.productId}"><i class="fa-solid fa-trash-can"></i></button>
+                </div>`;
+            cartItemsEl.appendChild(cartItemDiv);
         });
-
-        document.getElementById('total-cash').textContent = utils.formatCurrency(totalCash);
-        document.getElementById('total-transfer').textContent = utils.formatCurrency(totalTransfer);
-        document.getElementById('total-sales').textContent = utils.formatCurrency(totalCash + totalTransfer);
-    },
-
-    // ===== PRODUCT SUMMARY PAGE =====
-    productSummary: () => {
-        const form = document.getElementById('date-filter-form');
-        const today = new Date().toISOString().split('T')[0];
-        document.getElementById('start-date').value = today;
-        document.getElementById('end-date').value = today;
-
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            utils.showLoader();
-            const startDate = new Date(document.getElementById('start-date').value);
-            startDate.setHours(0,0,0,0);
-            const endDate = new Date(document.getElementById('end-date').value);
-            endDate.setHours(23,59,59,999);
-
-            const { data, error } = await supabase.from('sales_log').select(`*, products (product_name)`)
-                .gte('created_at', startDate.toISOString()).lte('created_at', endDate.toISOString());
-            utils.hideLoader();
-
-            if (error) return utils.showToast('โหลดข้อมูลสรุปการขายล้มเหลว', 'error');
-            if (data.length === 0) return utils.showToast('ไม่พบข้อมูลในช่วงวันที่ที่เลือก', 'error');
-            
-            document.getElementById('summary-content').style.display = 'block';
-            pages.helpers.processSummaryData(data);
-        });
-    },
-
-    // ===== HELPER FUNCTIONS FOR PAGES =====
-    helpers: {
-        openSaleModal: (product) => {
-            const modal = document.getElementById('sale-modal');
-            modal.style.display = 'block';
-            document.getElementById('modal-product-name').textContent = `ขาย: ${product.product_name}`;
-            document.getElementById('modal-product-id').value = product.id;
-            const qtyInput = document.getElementById('modal-quantity-sold');
-            qtyInput.value = 1;
-            qtyInput.max = product.quantity;
-            document.getElementById('modal-product-price').value = product.price;
-        },
-
-        setupSaleModal: () => {
-            const modal = document.getElementById('sale-modal');
-            document.getElementById('close-modal-btn').addEventListener('click', () => modal.style.display = 'none');
-            document.getElementById('sale-form').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const productId = document.getElementById('modal-product-id').value;
-                const product = state.products.find(p => p.id == productId);
-                const quantitySold = parseInt(document.getElementById('modal-quantity-sold').value);
-
-                if (quantitySold > product.quantity) return utils.showToast('สินค้าในสต็อกไม่เพียงพอ', 'error');
-                
-                utils.showLoader();
-                // Use RPC to ensure atomic operation
-                const { error } = await supabase.rpc('process_sale', {
-                    p_id: productId,
-                    q_sold: quantitySold,
-                    p_method: document.getElementById('modal-payment-method').value,
-                    s_name: utils.getUser().employee_id,
-                    p_per_item: product.price
-                });
-                utils.hideLoader();
-
-                if (error) {
-                    utils.showToast(`เกิดข้อผิดพลาด: ${error.message}`, 'error');
-                    console.error(error);
-                } else {
-                    utils.showToast('บันทึกการขายสำเร็จ');
-                    modal.style.display = 'none';
-                }
-            });
-        },
-        
-        setupAddProductForm: () => {
-             document.getElementById('add-product-form').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                utils.showLoader();
-                const newProduct = {
-                    product_name: document.getElementById('product-name').value,
-                    quantity: document.getElementById('quantity').value,
-                    price: document.getElementById('price').value,
-                    category: document.getElementById('category').value,
-                };
-                const { error } = await supabase.from('products').insert([newProduct]);
-                utils.hideLoader();
-                if (error) {
-                    utils.showToast('เพิ่มสินค้าล้มเหลว', 'error');
-                } else {
-                    utils.showToast('เพิ่มสินค้าใหม่สำเร็จ');
-                    e.target.reset();
-                }
-            });
-        },
-
-        deleteProduct: async (e) => {
-            e.preventDefault();
-            const id = e.target.dataset.id;
-            if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบสินค้านี้? การกระทำนี้ไม่สามารถย้อนกลับได้')) return;
-
-            // Check for related sales records first
-             const { data: sales, error: salesError } = await supabase
-                .from('sales_log').select('sale_id').eq('product_id', id).limit(1);
-
-            if (salesError) return utils.showToast('ตรวจสอบประวัติการขายล้มเหลว', 'error');
-            if (sales.length > 0) return utils.showToast('ไม่สามารถลบได้ มีประวัติการขายอยู่', 'error');
-            
-            utils.showLoader();
-            const { error } = await supabase.from('products').delete().eq('id', id);
-            utils.hideLoader();
-
-            if (error) utils.showToast('ลบสินค้าล้มเหลว', 'error');
-            else utils.showToast('ลบสินค้าสำเร็จ');
-        },
-        
-        listenToProductChanges: (callback, highlightCallback) => {
-             if (productUpdateChannel) return; // Prevent multiple listeners
-             productUpdateChannel = supabase.channel('product-updates')
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
-                    console.log('Realtime update received:', payload);
-                    if (callback) callback(); // Refetch all data
-                    if (highlightCallback && payload.eventType === 'UPDATE') {
-                        highlightCallback(payload.new.id);
-                    }
-                })
-                .subscribe();
-        },
-        
-        processSummaryData: (salesData) => {
-            const summary = salesData.reduce((acc, sale) => {
-                const id = sale.product_id;
-                if (!acc.products[id]) {
-                    acc.products[id] = { name: sale.products.product_name, qty: 0, revenue: 0 };
-                }
-                acc.products[id].qty += sale.quantity_sold;
-                acc.products[id].revenue += sale.total_amount;
-                
-                const date = new Date(sale.created_at).toLocaleDateString('en-CA'); // 2023-12-25
-                if (!acc.daily[date]) acc.daily[date] = 0;
-                acc.daily[date] += sale.total_amount;
-
-                return acc;
-            }, { products: {}, daily: {} });
-
-            // Render table
-            const tableBody = document.getElementById('product-summary-body');
-            tableBody.innerHTML = '';
-            Object.values(summary.products).sort((a,b) => b.revenue - a.revenue).forEach(p => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${p.name}</td>
-                    <td>${p.qty}</td>
-                    <td>${utils.formatCurrency(p.revenue)}</td>
-                `;
-                tableBody.appendChild(row);
-            });
-            
-            // Render charts
-            pages.helpers.renderDailySalesChart(summary.daily);
-            pages.helpers.renderTopProductsChart(summary.products);
-        },
-
-        renderDailySalesChart: (dailyData) => {
-            const ctx = document.getElementById('daily-sales-chart').getContext('2d');
-            const sortedDates = Object.keys(dailyData).sort();
-            const labels = sortedDates.map(date => new Date(date).toLocaleDateString('th-TH'));
-            const data = sortedDates.map(date => dailyData[date]);
-            
-            if(charts.dailySalesChart) charts.dailySalesChart.destroy();
-            charts.dailySalesChart = new Chart(ctx, {
-                type: 'line',
-                data: { labels, datasets: [{
-                    label: 'ยอดขายรายวัน',
-                    data: data,
-                    borderColor: 'rgba(0, 224, 255, 1)',
-                    backgroundColor: 'rgba(0, 224, 255, 0.2)',
-                    fill: true,
-                    tension: 0.3,
-                }]},
-                options: pages.helpers.getChartOptions('แนวโน้มยอดขายรายวัน'),
-            });
-        },
-        
-        renderTopProductsChart: (productData) => {
-            const ctx = document.getElementById('top-products-chart').getContext('2d');
-            const topProducts = Object.values(productData).sort((a,b) => b.revenue - a.revenue).slice(0, 5);
-            const labels = topProducts.map(p => p.name);
-            const data = topProducts.map(p => p.revenue);
-
-            if(charts.topProductsChart) charts.topProductsChart.destroy();
-            charts.topProductsChart = new Chart(ctx, {
-                type: 'bar',
-                data: { labels, datasets: [{
-                    label: 'ยอดขาย (บาท)',
-                    data: data,
-                    backgroundColor: [
-                        'rgba(0, 224, 255, 0.7)',
-                        'rgba(204, 0, 255, 0.7)',
-                        'rgba(0, 255, 192, 0.7)',
-                        'rgba(255, 215, 0, 0.7)',
-                        'rgba(255, 69, 0, 0.7)',
-                    ],
-                    borderColor: 'rgba(255, 255, 255, 0.1)',
-                    borderWidth: 1,
-                }]},
-                options: pages.helpers.getChartOptions('5 อันดับสินค้าขายดี (ตามยอดขาย)'),
-            });
-        },
-        
-        getChartOptions: (title) => ({
-             responsive: true,
-             maintainAspectRatio: false,
-             plugins: {
-                 legend: { labels: { color: 'rgba(240, 240, 255, 0.8)' } },
-                 title: { display: true, text: title, color: 'rgba(240, 240, 255, 1)', font: { size: 16, family: "'Kanit', sans-serif" }}
-             },
-             scales: {
-                 y: { ticks: { color: 'rgba(160, 160, 192, 0.8)' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
-                 x: { ticks: { color: 'rgba(160, 160, 192, 0.8)' }, grid: { color: 'rgba(255, 255, 255, 0.05)' } }
-             }
-        })
     }
-};
+    const total = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
+    cartTotalEl.textContent = `฿${total.toFixed(2)}`;
+}
+
+// Manage Products Page
+async function renderManageProductsPage() {
+    const mainContent = document.getElementById('main-content');
+    if (!mainContent) return;
+    
+    showLoader();
+    await fetchProducts();
+    hideLoader();
+
+    let rows = state.products.map(p => `
+        <tr class="border-b hover:bg-slate-50">
+            <td class="p-4"><img src="https://placehold.co/150x150/cccccc/ffffff?text=${encodeURIComponent(p.name)}" class="w-12 h-12 rounded-md object-cover"></td>
+            <td class="p-4 font-medium">${p.name}</td>
+            <td class="p-4">${p.category || 'N/A'}</td>
+            <td class="p-4">฿${Number(p.price).toFixed(2)}</td>
+            <td class="p-4">${p.stock}</td>
+            <td class="p-4 text-center">
+                <button class="edit-product-btn text-blue-600 hover:text-blue-800 mr-2" data-product-id="${p.id}"><i class="fa-solid fa-pen-to-square"></i></button>
+                <button class="delete-product-btn text-red-600 hover:text-red-800" data-product-id="${p.id}"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        </tr>`).join('');
+
+    mainContent.innerHTML = `
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">รายการสินค้าทั้งหมด</h2>
+                <button id="add-product-btn" class="py-2 px-4 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 transition-colors"><i class="fa-solid fa-plus mr-2"></i>เพิ่มสินค้าใหม่</button>
+            </div>
+            <div class="overflow-x-auto"><table class="w-full text-left">
+                <thead class="bg-slate-50 border-b">
+                    <tr>
+                        <th class="p-4 font-semibold">รูป</th><th class="p-4 font-semibold">ชื่อสินค้า</th><th class="p-4 font-semibold">หมวดหมู่</th>
+                        <th class="p-4 font-semibold">ราคา</th><th class="p-4 font-semibold">คงเหลือ</th><th class="p-4 font-semibold text-center">จัดการ</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table></div>
+        </div>`;
+}
+
+// Sales History Page
+async function renderSalesHistoryPage() {
+    const mainContent = document.getElementById('main-content');
+    if (!mainContent) return;
+    showLoader();
+    const { data, error } = await db.from('sales_log')
+        .select(`*, products(product_name)`).order('created_at', { ascending: false });
+    hideLoader();
+    if (error) {
+        console.error("Error fetching sales history", error);
+        mainContent.innerHTML = '<p class="text-center text-red-500">ไม่สามารถโหลดประวัติการขายได้</p>';
+        return;
+    }
+    let rows = data.map(sale => `
+         <tr class="border-b hover:bg-slate-50">
+            <td class="p-4">${new Date(sale.created_at).toLocaleString('th-TH')}</td>
+            <td class="p-4">${sale.products.product_name}</td>
+            <td class="p-4">${sale.quantity_sold}</td>
+            <td class="p-4">${sale.payment_method}</td>
+            <td class="p-4">${sale.salesperson_name}</td>
+        </tr>`).join('');
+    mainContent.innerHTML = `
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <h2 class="text-xl font-semibold mb-4">ประวัติการขาย</h2>
+            <div class="overflow-x-auto"><table class="w-full text-left">
+                <thead class="bg-slate-50 border-b">
+                    <tr>
+                        <th class="p-4 font-semibold">วันที่/เวลา</th><th class="p-4 font-semibold">ชื่อสินค้า</th><th class="p-4 font-semibold">จำนวน</th>
+                        <th class="p-4 font-semibold">การชำระเงิน</th><th class="p-4 font-semibold">พนักงานขาย</th>
+                    </tr>
+                </thead>
+                <tbody>${rows || '<tr><td colspan="5" class="text-center p-8 text-slate-400">ยังไม่มีประวัติการขาย</td></tr>'}</tbody>
+            </table></div>
+        </div>`;
+}
+
+// Restock Page
+async function renderRestockPage() {
+    const mainContent = document.getElementById('main-content');
+    if (!mainContent) return;
+    showLoader();
+    await fetchProducts();
+    hideLoader();
+    let rows = state.products.map(p => `
+       <tr class="border-b hover:bg-slate-50">
+           <td class="p-4"><img src="https://placehold.co/150x150/cccccc/ffffff?text=${encodeURIComponent(p.name)}" class="w-12 h-12 rounded-md object-cover"></td>
+           <td class="p-4 font-medium">${p.name}</td>
+           <td class="p-4 font-bold ${p.stock < 10 ? 'text-red-500' : 'text-green-500'}">${p.stock}</td>
+           <td class="p-4 text-center">
+               <div class="flex justify-center items-center gap-2">
+                  <input type="number" min="1" class="restock-amount-input w-24 text-center border rounded-md p-1" data-product-id="${p.id}" placeholder="จำนวน">
+                  <button class="restock-btn bg-green-500 text-white px-3 py-1 rounded-md text-sm hover:bg-green-600" data-product-id="${p.id}">ยืนยัน</button>
+               </div>
+           </td>
+       </tr>`).join('');
+    mainContent.innerHTML = `
+       <div class="bg-white p-6 rounded-xl shadow-lg">
+           <h2 class="text-xl font-semibold mb-4">สรุปและเติมสต็อกสินค้า</h2>
+           <div class="overflow-x-auto"><table class="w-full text-left">
+               <thead class="bg-slate-50 border-b">
+                   <tr>
+                       <th class="p-4 font-semibold">รูป</th><th class="p-4 font-semibold">ชื่อสินค้า</th><th class="p-4 font-semibold">คงเหลือ</th>
+                       <th class="p-4 font-semibold text-center">เพิ่มสต็อก</th>
+                   </tr>
+               </thead>
+               <tbody>${rows}</tbody>
+           </table></div>
+       </div>`;
+}
+
+
+// --- ACTION HANDLERS ---
+function addToCart(productId) {
+    const product = state.products.find(p => p.id === productId);
+    if (!product || product.stock <= 0) return showNotification('สินค้าหมด!', 'error');
+
+    let cart = getCart();
+    const cartItem = cart.find(item => item.productId === productId);
+    if (cartItem) {
+        if (cartItem.quantity < product.stock) cartItem.quantity++;
+        else return showNotification('สินค้าในสต็อกไม่เพียงพอ!', 'warning');
+    } else {
+        cart.push({ productId: product.id, name: product.name, price: product.price, quantity: 1, stock: product.stock });
+    }
+    saveCart(cart);
+    renderCart();
+}
+
+function handleCartActions(e) {
+    const target = e.target.closest('button');
+    if (!target) return;
+    const productId = parseInt(target.dataset.productId);
+    let cart = getCart();
+
+    if (target.classList.contains('quantity-change-btn')) {
+        const change = parseInt(target.dataset.change);
+        const cartItem = cart.find(item => item.productId === productId);
+        if (cartItem) {
+            const newQuantity = cartItem.quantity + change;
+            if (newQuantity > 0) {
+                if (newQuantity <= cartItem.stock) cartItem.quantity = newQuantity;
+                else showNotification('สินค้าในสต็อกไม่เพียงพอ!', 'warning');
+            } else {
+                cart = cart.filter(item => item.productId !== productId);
+            }
+        }
+    } else if (target.classList.contains('remove-item-btn')) {
+        cart = cart.filter(item => item.productId !== productId);
+    }
+    saveCart(cart);
+    renderCart();
+}
+
+function clearCart() {
+    saveCart([]);
+    renderCart();
+}
+
+async function checkout(paymentMethod) {
+    const cart = getCart();
+    if (cart.length === 0) return showNotification('กรุณาเพิ่มสินค้าลงในตะกร้าก่อน', 'warning');
+    showLoader();
+    const salesToLog = cart.map(item => ({ product_id: item.productId, quantity_sold: item.quantity, payment_method: paymentMethod, salesperson_name: state.currentUser }));
+    const { error: salesError } = await db.from('sales_log').insert(salesToLog);
+    if (salesError) {
+        hideLoader();
+        return showNotification('เกิดข้อผิดพลาดในการบันทึกการขาย', 'error');
+    }
+    const stockUpdatePromises = cart.map(item => db.from('products').update({ quantity: item.stock - item.quantity }).eq('id', item.productId));
+    await Promise.all(stockUpdatePromises);
+    hideLoader();
+    showNotification('ชำระเงินสำเร็จ!', 'success');
+    clearCart();
+    await fetchProducts();
+    renderProductList();
+}
+
+function showCheckoutModal() {
+    if (getCart().length === 0) return showNotification('ตะกร้าว่างเปล่า', 'warning');
+    modalContent.innerHTML = `
+        <h3 class="text-xl font-bold mb-4">เลือกช่องทางการชำระเงิน</h3>
+        <div class="flex flex-col gap-4">
+            <button id="pay-cash" class="w-full py-4 text-lg bg-green-500 text-white rounded-md font-semibold hover:bg-green-600"><i class="fa-solid fa-money-bill-wave mr-2"></i>เงินสด</button>
+            <button id="pay-transfer" class="w-full py-4 text-lg bg-blue-500 text-white rounded-md font-semibold hover:bg-blue-600"><i class="fa-solid fa-mobile-screen-button mr-2"></i>โอนเงิน</button>
+        </div>
+        <div class="mt-6 flex justify-end"><button class="cancel-modal-btn py-2 px-4 bg-slate-200 rounded-md">ยกเลิก</button></div>`;
+    showModal();
+    document.getElementById('pay-cash').onclick = () => { hideModal(); checkout('เงินสด'); };
+    document.getElementById('pay-transfer').onclick = () => { hideModal(); checkout('โอนเงิน'); };
+}
+
+function showProductForm(productId = null) {
+    const isEditing = productId !== null;
+    const product = isEditing ? state.products.find(p => p.id === parseInt(productId)) : {};
+    const title = isEditing ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่';
+    modalContent.innerHTML = `
+        <form id="product-form">
+            <h3 class="text-xl font-bold mb-4">${title}</h3><input type="hidden" name="id" value="${product.id || ''}">
+            <div class="space-y-4">
+                <div><label class="text-sm font-medium">ชื่อสินค้า</label><input type="text" name="product_name" class="mt-1 block w-full px-3 py-2 bg-slate-50 border rounded-md" value="${product.name || ''}" required></div>
+                <div><label class="text-sm font-medium">หมวดหมู่</label><input type="text" name="category" class="mt-1 block w-full px-3 py-2 bg-slate-50 border rounded-md" value="${product.category || ''}" required></div>
+                <div><label class="text-sm font-medium">ราคา</label><input type="number" step="0.01" name="price" class="mt-1 block w-full px-3 py-2 bg-slate-50 border rounded-md" value="${product.price || ''}" required></div>
+                <div><label class="text-sm font-medium">จำนวนในสต็อก</label><input type="number" name="quantity" class="mt-1 block w-full px-3 py-2 bg-slate-50 border rounded-md" value="${product.stock || ''}" required></div>
+            </div>
+            <div class="mt-6 flex justify-end gap-3">
+                <button type="button" class="cancel-modal-btn py-2 px-4 bg-slate-200 rounded-md">ยกเลิก</button>
+                <button type="submit" class="py-2 px-4 bg-indigo-600 text-white rounded-md">บันทึก</button>
+            </div>
+        </form>`;
+    showModal();
+    document.getElementById('product-form').onsubmit = (e) => { e.preventDefault(); saveProduct(new FormData(e.target)); };
+}
+
+async function saveProduct(formData) {
+    const productId = formData.get('id') ? parseInt(formData.get('id')) : null;
+    const productData = Object.fromEntries(formData.entries());
+    delete productData.id;
+    showLoader();
+    const { error } = productId ? await db.from('products').update(productData).eq('id', productId) : await db.from('products').insert([productData]);
+    hideLoader();
+    if (error) return showNotification('เกิดข้อผิดพลาดในการบันทึกสินค้า', 'error');
+    showNotification('บันทึกข้อมูลสินค้าสำเร็จ!', 'success');
+    hideModal();
+    renderManageProductsPage();
+}
+
+async function deleteProduct(productId) {
+    const product = state.products.find(p => p.id === parseInt(productId));
+    showConfirmation(`ยืนยันการลบสินค้า "${product.name}"?`, async () => {
+        showLoader();
+        const { error } = await db.from('products').delete().eq('id', productId);
+        hideLoader();
+        if (error) return showNotification(`เกิดข้อผิดพลาดในการลบสินค้า`, 'error');
+        showNotification(`ลบสินค้าสำเร็จ!`, 'success');
+        renderManageProductsPage();
+    });
+}
+
+async function handleRestock(productId, amount) {
+    if (isNaN(amount) || amount <= 0) return showNotification('กรุณาใส่จำนวนที่ถูกต้อง', 'warning');
+    showLoader();
+    const product = state.products.find(p => p.id === productId);
+    const newStock = product.stock + amount;
+    const { error } = await db.from('products').update({ quantity: newStock }).eq('id', productId);
+    hideLoader();
+    if (error) return showNotification('เกิดข้อผิดพลาดในการเติมสต็อก', 'error');
+    showNotification(`เติมสต็อก "${product.name}" สำเร็จ!`, 'success');
+    renderRestockPage();
+}
+
+// --- APP INITIALIZATION & ROUTING ---
+function initApp() {
+    if (!state.currentUser) {
+        window.location.href = 'login.html';
+        return;
+    }
+    // Setup common UI elements
+    const currentUserEl = document.getElementById('current-user');
+    const currentTimeEl = document.getElementById('current-time');
+    const appView = document.getElementById('app-view');
+
+    if(currentUserEl) currentUserEl.textContent = state.currentUser;
+    if(currentTimeEl) {
+        const updateTime = () => currentTimeEl.textContent = new Date().toLocaleString('th-TH', { dateStyle: 'long', timeStyle: 'medium' });
+        updateTime();
+        setInterval(updateTime, 1000);
+    }
+    if (appView) appView.classList.replace('opacity-0', 'opacity-100');
+
+    // Simple router based on filename
+    const path = window.location.pathname.split("/").pop();
+    switch (path) {
+        case 'index.html':
+        case '':
+            renderPosPage();
+            break;
+        case 'manage-products.html':
+            renderManageProductsPage();
+            break;
+
+        case 'sales-history.html':
+            renderSalesHistoryPage();
+            break;
+        
+        case 'restock.html':
+            renderRestockPage();
+            break;
+    }
+
+    // Add general event listeners
+    document.getElementById('logout-button')?.addEventListener('click', () => {
+        sessionStorage.removeItem('pos-user');
+        sessionStorage.removeItem('pos-cart');
+        window.location.href = 'login.html';
+    });
+    
+    // Event Delegation for dynamic content
+    document.body.addEventListener('click', (e) => {
+        const button = e.target.closest('button');
+        if (!button) return;
+        
+        // POS Page Actions
+        if (button.id === 'clear-cart-btn') clearCart();
+        if (button.id === 'checkout-btn') showCheckoutModal();
+        if (button.closest('#cart-items')) handleCartActions(e);
+
+        // Manage/Restock Page Actions
+        if (button.id === 'add-product-btn') showProductForm();
+        if (button.classList.contains('edit-product-btn')) showProductForm(button.dataset.productId);
+        if (button.classList.contains('delete-product-btn')) deleteProduct(button.dataset.productId);
+        if (button.classList.contains('restock-btn')) {
+            const id = button.dataset.productId;
+            const input = document.querySelector(`.restock-amount-input[data-product-id="${id}"]`);
+            handleRestock(parseInt(id), parseInt(input.value));
+        }
+
+        // Modal Actions
+        if(button.classList.contains('cancel-modal-btn')) hideModal();
+    });
+
+    modalContainer?.addEventListener('click', (e) => { if (e.target === modalContainer) hideModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === "Escape") hideModal(); });
+}
+
+// --- RUN APP ---
+document.addEventListener('DOMContentLoaded', initApp);
