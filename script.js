@@ -1,12 +1,11 @@
 // ===================================================================================
-// SCRIPT.JS - v3 (iOS/Mobile Hotfix)
+// SCRIPT.JS - v4 (Security & Bug Fixes)
 // ===================================================================================
 
-// Import Supabase client directly as an ES Module. This is the key fix for mobile browsers.
+// Import Supabase client directly as an ES Module.
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 // --- MAIN EXECUTION ---
-// Wait for the DOM to be fully loaded before running any script logic.
 document.addEventListener('DOMContentLoaded', () => {
 
     // --- SUPABASE SETUP ---
@@ -49,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const showModal = () => {
-        if(!modalContainer) return;
+        if (!modalContainer) return;
         modalContainer.classList.remove('hidden');
         setTimeout(() => {
             modalContainer.classList.add('opacity-100');
@@ -58,17 +57,17 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const hideModal = () => {
-        if(!modalContainer) return;
+        if (!modalContainer) return;
         modalContainer.classList.remove('opacity-100');
         modalContent?.classList.remove('scale-100');
         setTimeout(() => {
             modalContainer.classList.add('hidden');
-            if(modalContent) modalContent.innerHTML = '';
+            if (modalContent) modalContent.innerHTML = '';
         }, 300);
     };
 
     const showConfirmation = (message, onConfirm) => {
-        if(!modalContent) return;
+        if (!modalContent) return;
         modalContent.innerHTML = `
             <h3 class="text-lg font-bold mb-4">ยืนยันการกระทำ</h3>
             <p>${message}</p>
@@ -109,16 +108,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- CART MANAGEMENT ---
     const getCart = () => JSON.parse(sessionStorage.getItem('pos-cart')) || [];
     const saveCart = (cart) => sessionStorage.setItem('pos-cart', JSON.stringify(cart));
-    
+
     // --- PAGE-SPECIFIC RENDER FUNCTIONS ---
-    // POS Page (index.html)
     async function renderPosPage() {
         await fetchProducts();
         renderCategoryFilters();
         renderProductList();
         renderCart();
     }
-    
+
     function renderCategoryFilters() {
         const container = document.getElementById('category-filters');
         if (!container) return;
@@ -164,14 +162,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-    
+
     function renderCart() {
         const cartItemsEl = document.getElementById('cart-items');
         const cartTotalEl = document.getElementById('cart-total');
         if (!cartItemsEl || !cartTotalEl) return;
 
         const cart = getCart();
-        cartItemsEl.innerHTML = cart.length === 0 
+        cartItemsEl.innerHTML = cart.length === 0
             ? '<p class="text-slate-400 text-center mt-8">ยังไม่มีสินค้าในตะกร้า</p>'
             : cart.map(item => `
                 <div class="flex justify-between items-center mb-3 p-2 rounded-md hover:bg-slate-50">
@@ -183,11 +181,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button class="remove-item-btn text-red-500 hover:text-red-700 ml-2" data-product-id="${item.productId}"><i class="fa-solid fa-trash-can"></i></button>
                     </div>
                 </div>`).join('');
-        
+
         const total = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
         cartTotalEl.textContent = `฿${total.toFixed(2)}`;
     }
-
+    
     // Manage Products Page
     async function renderManageProductsPage() {
         const mainContent = document.getElementById('main-content');
@@ -231,8 +229,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const { data, error } = await db.from('sales_log').select(`*, products(product_name)`).order('created_at', { ascending: false });
         hideLoader();
         if (error) {
-            console.error("Error fetching sales history", error);
-            mainContent.innerHTML = '<p class="text-center text-red-500">ไม่สามารถโหลดประวัติการขายได้</p>';
+            console.error("Error fetching sales history:", error);
+            mainContent.innerHTML = `<div class="bg-white p-8 rounded-xl shadow-lg text-center">
+                <i class="fa-solid fa-circle-exclamation text-4xl text-red-500 mb-4"></i>
+                <h2 class="text-xl font-semibold">เกิดข้อผิดพลาด</h2>
+                <p class="text-slate-500 mt-2">ไม่สามารถโหลดประวัติการขายได้<br>กรุณาตรวจสอบว่าคุณได้สร้างตาราง 'sales_log' และเปิด RLS แล้ว</p>
+            </div>`;
             return;
         }
         mainContent.innerHTML = `
@@ -246,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <tbody>${data.map(sale => `
                          <tr class="border-b hover:bg-slate-50">
                             <td class="p-4">${new Date(sale.created_at).toLocaleString('th-TH')}</td>
-                            <td class="p-4">${sale.products ? sale.products.product_name : 'N/A'}</td>
+                            <td class="p-4">${sale.products ? sale.products.product_name : '<span class="text-red-500">สินค้านี้ถูกลบไปแล้ว</span>'}</td>
                             <td class="p-4">${sale.quantity_sold}</td>
                             <td class="p-4">${sale.payment_method}</td>
                             <td class="p-4">${sale.salesperson_name}</td>
@@ -329,12 +331,12 @@ document.addEventListener('DOMContentLoaded', () => {
         saveCart(cart);
         renderCart();
     };
-    
+
     const clearCart = () => {
         saveCart([]);
         renderCart();
     };
-    
+
     async function checkout(paymentMethod) {
         const cart = getCart();
         if (cart.length === 0) return showNotification('กรุณาเพิ่มสินค้าลงในตะกร้าก่อน', 'warning');
@@ -353,10 +355,10 @@ document.addEventListener('DOMContentLoaded', () => {
         await fetchProducts();
         renderProductList();
     }
-    
+
     const showCheckoutModal = () => {
         if (getCart().length === 0) return showNotification('ตะกร้าว่างเปล่า', 'warning');
-        if(!modalContent) return;
+        if (!modalContent) return;
         modalContent.innerHTML = `
             <h3 class="text-xl font-bold mb-4">เลือกช่องทางการชำระเงิน</h3>
             <div class="flex flex-col gap-4">
@@ -370,7 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const showProductForm = (productId = null) => {
-        if(!modalContent) return;
+        if (!modalContent) return;
         const isEditing = productId !== null;
         const product = isEditing ? state.products.find(p => p.id === parseInt(productId)) : {};
         const title = isEditing ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่';
@@ -429,29 +431,44 @@ document.addEventListener('DOMContentLoaded', () => {
         renderRestockPage();
     }
     
+    // --- AUTHENTICATION & APP INITIALIZATION ---
+    async function handleLogin(email, password) {
+        showLoader();
+        const { data, error } = await db.auth.signInWithPassword({ email, password });
+        hideLoader();
+
+        if (error) {
+            showNotification('อีเมลหรือรหัสผ่านไม่ถูกต้อง', 'error');
+            return;
+        }
+
+        if (data.user) {
+            sessionStorage.setItem('pos-user', data.user.email);
+            window.location.href = 'index.html';
+        }
+    }
+
     function initApp() {
         if (!state.currentUser && !window.location.pathname.endsWith('login.html')) {
             window.location.href = 'login.html';
             return;
         }
-        
+
         if (window.location.pathname.endsWith('login.html')) {
             document.getElementById('login-form')?.addEventListener('submit', (e) => {
-                 e.preventDefault();
-                 const username = document.getElementById('username').value;
-                 if (username) {
-                     sessionStorage.setItem('pos-user', username);
-                     window.location.href = 'index.html';
-                 }
-             });
+                e.preventDefault();
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                handleLogin(email, password);
+            });
             return;
         };
 
         const currentUserEl = document.getElementById('current-user');
         const currentTimeEl = document.getElementById('current-time');
 
-        if(currentUserEl) currentUserEl.textContent = state.currentUser;
-        if(currentTimeEl) {
+        if (currentUserEl) currentUserEl.textContent = state.currentUser;
+        if (currentTimeEl) {
             const updateTime = () => currentTimeEl.textContent = new Date().toLocaleString('th-TH', { dateStyle: 'long', timeStyle: 'medium' });
             updateTime();
             setInterval(updateTime, 1000);
@@ -466,16 +483,19 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'restock.html': renderRestockPage(); break;
         }
 
-        document.getElementById('logout-button')?.addEventListener('click', () => {
+        document.getElementById('logout-button')?.addEventListener('click', async () => {
+            showLoader();
+            await db.auth.signOut();
             sessionStorage.removeItem('pos-user');
             sessionStorage.removeItem('pos-cart');
+            hideLoader();
             window.location.href = 'login.html';
         });
-        
+
         document.body.addEventListener('click', (e) => {
             const button = e.target.closest('button');
             if (!button) return;
-            
+
             if (button.id === 'clear-cart-btn') clearCart();
             if (button.id === 'checkout-btn') showCheckoutModal();
             if (button.closest('#cart-items')) handleCartActions(e);
@@ -486,14 +506,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (button.classList.contains('restock-btn')) {
                 const id = button.dataset.productId;
                 const input = document.querySelector(`.restock-amount-input[data-product-id="${id}"]`);
-                if(input) handleRestock(parseInt(id), parseInt(input.value));
+                if (input) handleRestock(parseInt(id), parseInt(input.value));
             }
-            if(button.classList.contains('cancel-modal-btn')) hideModal();
+            if (button.classList.contains('cancel-modal-btn')) hideModal();
         });
 
         modalContainer?.addEventListener('click', (e) => { if (e.target === modalContainer) hideModal(); });
         document.addEventListener('keydown', (e) => { if (e.key === "Escape") hideModal(); });
     }
 
+    // --- RUN APP ---
     initApp();
 });
