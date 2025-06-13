@@ -1,4 +1,4 @@
-// ========== TEXAS STOCK MANAGEMENT v2.0 - SCRIPT ==========
+// ========== TEXAS STOCK MANAGEMENT v2.1 - STABILITY PATCH ==========
 
 // ========== SUPABASE & GLOBAL CONFIG ==========
 const SUPABASE_URL = 'https://imohhlypiuhnbpumlgli.supabase.co';
@@ -25,17 +25,15 @@ let productUpdateChannel = null;
 // ========== UTILITY & HELPER FUNCTIONS ==========
 const utils = {
     getUser: () => JSON.parse(localStorage.getItem('texasUser')),
-    checkAuth: () => {
-        const user = utils.getUser();
-        const onLoginPage = document.body.id === 'login-page';
-        if (!user && !onLoginPage) window.location.href = 'login.html';
-        if (user && onLoginPage) window.location.href = 'index.html';
-        return user;
-    },
+    // *** IMPROVED LOGOUT FUNCTION ***
     logout: () => {
-        if (productUpdateChannel) supabase.removeChannel(productUpdateChannel);
+        if (productUpdateChannel) {
+            supabase.removeChannel(productUpdateChannel);
+            productUpdateChannel = null;
+        }
         localStorage.removeItem('texasUser');
-        window.location.href = 'login.html';
+        // A more forceful redirect to ensure no cached pages are shown
+        window.location.replace('login.html');
     },
     showLoader: () => document.getElementById('loader')?.classList.add('show'),
     hideLoader: () => document.getElementById('loader')?.classList.remove('show'),
@@ -75,10 +73,14 @@ const utils = {
         const nameEl = document.getElementById('salesperson-name-nav');
         const logoutBtn = document.getElementById('logout-btn');
         if (nameEl) nameEl.textContent = user.employee_id;
-        if (logoutBtn) logoutBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            utils.logout();
-        });
+        if (logoutBtn) {
+             // Remove old listener to prevent duplicates
+            logoutBtn.replaceWith(logoutBtn.cloneNode(true));
+            document.getElementById('logout-btn').addEventListener('click', (e) => {
+                e.preventDefault();
+                utils.logout();
+            });
+        }
     },
     formatCurrency: (amount) => `฿${parseFloat(amount || 0).toFixed(2)}`,
 };
@@ -86,20 +88,36 @@ const utils = {
 // ========== PAGE INITIALIZATION ROUTER ==========
 document.addEventListener('DOMContentLoaded', () => {
     utils.createParticles();
-    const pageId = document.body.id;
-    const user = utils.checkAuth();
-
-    if (!user && pageId !== 'login-page') return;
     
-    utils.setupNavbar(user);
+    // *** NEW AUTHENTICATION FLOW ***
+    // This is the core of the fix. It centralizes the auth check.
+    const user = utils.getUser();
+    const onLoginPage = document.body.id === 'login-page';
 
-    switch (pageId) {
-        case 'login-page': pages.login(); break;
-        case 'pos-page': pages.pos(); break;
-        case 'manage-products-page': pages.manageProducts(); break;
-        case 'restock-page': pages.restock(); break;
-        case 'sales-history-page': pages.salesHistory(); break;
-        case 'product-summary-page': pages.productSummary(); break;
+    if (onLoginPage) {
+        // If on login page, check if a user is already logged in. If so, redirect.
+        if (user) {
+            window.location.replace('index.html');
+        } else {
+            pages.login(); // Only initialize login page if no user
+        }
+    } else {
+        // For all other pages, a user MUST exist.
+        if (!user) {
+            window.location.replace('login.html');
+            return; // Stop further execution
+        }
+        
+        // If user exists, setup common elements and then run page-specific code
+        utils.setupNavbar(user);
+        const pageId = document.body.id;
+        switch (pageId) {
+            case 'pos-page': pages.pos(); break;
+            case 'manage-products-page': pages.manageProducts(); break;
+            case 'restock-page': pages.restock(); break;
+            case 'sales-history-page': pages.salesHistory(); break;
+            case 'product-summary-page': pages.productSummary(); break;
+        }
     }
 });
 
@@ -114,7 +132,7 @@ const pages = {
             const id = e.target.elements['employee-id'].value.trim();
             if (ALLOWED_EMPLOYEE_IDS.includes(id)) {
                 localStorage.setItem('texasUser', JSON.stringify({ employee_id: id, isAdmin: id === ADMIN_ID }));
-                window.location.href = 'index.html';
+                window.location.replace('index.html'); // Use replace to prevent going back to login
             } else {
                 document.getElementById('error-message').style.display = 'block';
             }
@@ -488,7 +506,7 @@ const pages = {
                 acc.products[id].qty += sale.quantity_sold;
                 acc.products[id].revenue += sale.total_amount;
                 
-                const date = new Date(sale.created_at).toLocaleDateString('en-CA'); // YYYY-MM-DD
+                const date = new Date(sale.created_at).toLocaleDateString('en-CA'); // 2023-12-25
                 if (!acc.daily[date]) acc.daily[date] = 0;
                 acc.daily[date] += sale.total_amount;
 
@@ -574,4 +592,3 @@ const pages = {
         })
     }
 };
-
