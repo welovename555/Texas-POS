@@ -20,12 +20,6 @@
             <form id="login-form" class="space-y-4">
                 <div>
                     <label for="employee-id" class="text-sm font-medium text-slate-600">รหัสพนักงาน</label>
-                    <!-- 
-                        Key changes for numeric input on mobile:
-                        - type="text" with inputmode="numeric" is the most compatible way.
-                        - pattern="[0-9]*" for basic validation.
-                        - oninput script removes any non-digit characters instantly.
-                    -->
                     <input 
                         type="text" 
                         id="employee-id" 
@@ -40,6 +34,8 @@
                 <button type="submit" class="w-full py-3 px-4 text-white bg-indigo-600 rounded-md font-semibold hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
                     เข้าสู่ระบบ
                 </button>
+                <!-- Error Message Placeholder -->
+                <p id="login-error" class="text-center text-red-500 text-sm pt-2 h-6 hidden"></p>
             </form>
         </div>
     </div>
