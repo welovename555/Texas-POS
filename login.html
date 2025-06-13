@@ -3,27 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TEXAS Stock Management - Login</title>
-    <link rel="stylesheet" href="style.css?v=1.1">
-    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>เข้าสู่ระบบ - POS System</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body id="login-page" style="display: flex; justify-content: center; align-items: center; height: 100vh;">
-    <!-- Animated Background -->
-    <div class="animated-particles" id="particle-container"></div>
-
-    <div class="login-container">
-        <div class="login-header">
-            <h1>TEXAS</h1>
-            <p>ระบบจัดการสต็อกสินค้า</p>
+<body class="bg-slate-100">
+    <div id="login-view" class="flex items-center justify-center min-h-screen">
+        <div class="w-full max-w-sm p-8 space-y-6 bg-white rounded-xl shadow-lg">
+            <div class="text-center">
+                <i class="fa-solid fa-store text-5xl text-indigo-600"></i>
+                <h1 class="mt-4 text-3xl font-bold">POS System v2</h1>
+                <p class="text-slate-500">กรุณาเข้าสู่ระบบเพื่อใช้งาน</p>
+            </div>
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label for="username" class="text-sm font-medium text-slate-600">ชื่อผู้ใช้</label>
+                    <input type="text" id="username" value="admin" class="mt-1 block w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                </div>
+                <div>
+                    <label for="password" class="text-sm font-medium text-slate-600">รหัสผ่าน</label>
+                    <input type="password" id="password" value="password" class="mt-1 block w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                </div>
+                <button type="submit" class="w-full py-3 px-4 text-white bg-indigo-600 rounded-md font-semibold hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                    เข้าสู่ระบบ
+                </button>
+            </form>
+            <p id="login-error" class="text-center text-red-500 text-sm hidden">ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง</p>
         </div>
-        <div id="error-message" class="error-message">รหัสพนักงานไม่ถูกต้อง</div>
-        <form id="login-form">
-            <input type="text" id="employee-id" placeholder="กรอกรหัสพนักงาน" required autocomplete="off">
-            <button type="submit">เข้าสู่ระบบ</button>
-        </form>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=1.3"></script>
+    <script>
+        // Simple login script
+        document.getElementById('login-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            // In a real app, you would verify the password
+            if (username) {
+                // Use sessionStorage to keep the user logged in for the session
+                sessionStorage.setItem('pos-user', username);
+                window.location.href = 'index.html'; // Redirect to main page
+            } else {
+                const errorP = document.getElementById('login-error');
+                errorP.classList.remove('hidden');
+            }
+        });
+    </script>
 </body>
 </html>
