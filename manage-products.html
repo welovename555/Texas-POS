@@ -3,83 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TEXAS - Manage Products</title>
-    <link rel="stylesheet" href="style.css?v=1.1">
-    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>จัดการสินค้า - POS System</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body id="manage-products-page">
-    <!-- Elements -->
-    <div class="animated-particles" id="particle-container"></div>
-    <div class="loader-wrapper" id="loader"><div class="loader"></div></div>
-    <div class="toast-container" id="toast-container"></div>
-    
-    <nav>
-        <div class="nav-logo"><a href="index.html">TEXAS</a></div>
-        <div class="nav-links">
-            <a href="index.html">ขายสินค้า</a>
-            <a href="manage-products.html" class="active-link">จัดการสต็อก</a>
-            <a href="restock.html">เติมสต็อก</a>
-            <a href="sales-history.html">ประวัติการขาย</a>
-            <a href="product-summary.html">สรุปยอด</a>
-            <a href="#" id="logout-btn">ออกจากระบบ (<span id="salesperson-name-nav"></span>)</a>
-        </div>
-    </nav>
+<body class="bg-slate-100 text-slate-800">
+    <!-- Loader, App View, Nav, Header structure is the same as index.html -->
+    <div id="loader-overlay" class="loader-overlay fixed inset-0 flex items-center justify-center hidden">
+        <div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-32 w-32"></div>
+    </div>
 
-    <div class="container">
-        <!-- Add Product Form (Admin only) -->
-        <div id="add-product-section" style="display: none;">
-            <form id="add-product-form" class="add-product-form">
-                <h2>เพิ่มสินค้าใหม่</h2>
-                <div class="form-group">
-                    <label for="product-name">ชื่อสินค้า</label>
-                    <input type="text" id="product-name" required>
-                </div>
-                <div class="form-group">
-                    <label for="quantity">จำนวนเริ่มต้น</label>
-                    <input type="number" id="quantity" required min="0">
-                </div>
-                <div class="form-group">
-                    <label for="price">ราคา (บาท)</label>
-                    <input type="number" id="price" required step="0.01" min="0">
-                </div>
-                <div class="form-group">
-                    <label for="category">หมวดหมู่</label>
-                    <input type="text" id="category" required placeholder="เช่น บุหรี่, ยาน้ำแก้ไอ">
-                </div>
-                <div class="form-group">
-                    <button type="submit">เพิ่มสินค้า</button>
-                </div>
-            </form>
-        </div>
-        
-        <div class="page-header" style="margin-top: 40px;">
-            <h2>รายการสินค้าทั้งหมด</h2>
-            <div class="search-box">
-                <input type="text" id="manage-product-search" placeholder="ค้นหาจากชื่อหรือหมวดหมู่...">
+    <div id="app-view" class="h-screen w-screen flex opacity-0 transition-opacity duration-300">
+        <!-- Sidebar Navigation -->
+        <nav class="w-20 bg-white shadow-md flex flex-col items-center py-6 space-y-6">
+            <div class="text-indigo-600"><i class="fa-solid fa-store fa-2x"></i></div>
+            <div class="flex flex-col space-y-4">
+                <a href="index.html" class="nav-button p-4 rounded-lg sidebar-icon" title="ขายหน้าร้าน"><i class="fa-solid fa-cash-register fa-lg"></i></a>
+                <a href="manage-products.html" class="nav-button p-4 rounded-lg sidebar-icon bg-indigo-600 text-white" title="จัดการสินค้า"><i class="fa-solid fa-box-archive fa-lg"></i></a>
+                <a href="sales-history.html" class="nav-button p-4 rounded-lg sidebar-icon" title="ประวัติการขาย"><i class="fa-solid fa-chart-line fa-lg"></i></a>
+                <a href="restock.html" class="nav-button p-4 rounded-lg sidebar-icon" title="เติมสต็อก"><i class="fa-solid fa-cubes-stacked fa-lg"></i></a>
             </div>
-        </div>
+            <button id="logout-button" class="mt-auto p-4 rounded-lg sidebar-icon text-red-500 hover:bg-red-500 hover:text-white" title="ออกจากระบบ"><i class="fa-solid fa-right-from-bracket fa-lg"></i></button>
+        </nav>
 
-        <!-- Product List Table -->
-        <div class="table-wrapper">
-            <table id="product-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>ชื่อสินค้า</th>
-                        <th>จำนวนคงเหลือ</th>
-                        <th>ราคา (บาท)</th>
-                        <th>หมวดหมู่</th>
-                        <th>จัดการ</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Product rows will be generated by JS -->
-                </tbody>
-            </table>
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <header class="bg-white shadow-sm p-4 flex justify-between items-center">
+                <h1 id="view-title" class="text-2xl font-bold">จัดการสินค้า</h1>
+                <div class="text-right">
+                    <p class="font-semibold">ผู้ใช้: <span id="current-user"></span></p>
+                    <p id="current-time" class="text-sm text-slate-500"></p>
+                </div>
+            </header>
+
+            <main id="main-content" class="flex-1 overflow-y-auto p-6">
+                 <!-- Content will be rendered by script.js -->
+            </main>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=1.3"></script>
+    <!-- Modal Container -->
+    <div id="modal-container" class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 hidden opacity-0">
+        <div id="modal-content" class="modal-content bg-white w-full max-w-md p-6 rounded-xl shadow-2xl transform scale-95"></div>
+    </div>
+
+    <script type="module" src="script.js"></script>
 </body>
 </html>
