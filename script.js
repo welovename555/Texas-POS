@@ -1,5 +1,5 @@
 // ===================================================================================
-// SCRIPT.JS - v5 (Employee ID Login)
+// SCRIPT.JS - v6 (Admin Role & Login Feedback)
 // ===================================================================================
 
 // Import Supabase client directly as an ES Module.
@@ -411,9 +411,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const product = state.products.find(p => p.id === parseInt(productId));
         showConfirmation(`ยืนยันการลบสินค้า "${product.name}"?`, async () => {
             showLoader();
-            const { error } = await db.from('products').delete().eq('id', productId);
+            // Before deleting the product, delete related sales logs
+            const { error: salesLogError } = await db.from('sales_log').delete().eq('product_id', productId);
+            if (salesLogError) {
+                 hideLoader();
+                 return showNotification('เกิดข้อผิดพลาดในการลบประวัติการขายของสินค้า', 'error');
+            }
+            // Now delete the product
+            const { error: productError } = await db.from('products').delete().eq('id', productId);
             hideLoader();
-            if (error) return showNotification(`เกิดข้อผิดพลาดในการลบสินค้า`, 'error');
+            if (productError) return showNotification(`เกิดข้อผิดพลาดในการลบสินค้า`, 'error');
+            
             showNotification(`ลบสินค้าสำเร็จ!`, 'success');
             renderManageProductsPage();
         });
@@ -433,35 +441,48 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- AUTHENTICATION & APP INITIALIZATION ---
     function handleLogin(employeeId) {
+        const loginErrorEl = document.getElementById('login-error');
+        if (!loginErrorEl) return;
+
         if (!employeeId) {
-            showNotification('กรุณาป้อนรหัสพนักงาน', 'warning');
+            loginErrorEl.textContent = 'กรุณาป้อนรหัสพนักงาน';
+            loginErrorEl.classList.remove('hidden');
             return;
         }
-        // Simplified login: just store the ID and go to the main page.
-        sessionStorage.setItem('pos-user', `พนักงาน #${employeeId}`);
-        window.location.href = 'index.html';
+        
+        // Hide error on new attempt
+        loginErrorEl.classList.add('hidden');
+
+        let username = '';
+        if (employeeId === '2483') {
+            username = 'Admin (2483)';
+        } else {
+            username = `พนักงาน #${employeeId}`;
+        }
+
+        // Login successful
+        showLoader();
+        sessionStorage.setItem('pos-user', username);
+        // Add a small delay to show loader, makes it feel more responsive
+        setTimeout(() => {
+            window.location.href = 'index.html';
+        }, 500);
     }
 
     function initApp() {
-        // This logic runs on every page load.
-
         if (!state.currentUser && !window.location.pathname.endsWith('login.html')) {
-            // If not logged in and not on the login page, redirect to login.
             window.location.href = 'login.html';
             return;
         }
 
         if (window.location.pathname.endsWith('login.html')) {
-            // Logic specific to the login page.
             document.getElementById('login-form')?.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const employeeId = document.getElementById('employee-id').value;
                 handleLogin(employeeId);
             });
-            return; // Stop further execution on login page.
+            return;
         };
-
-        // --- Logic for all other pages (index, manage, etc.) ---
 
         const currentUserEl = document.getElementById('current-user');
         const currentTimeEl = document.getElementById('current-time');
@@ -483,7 +504,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         document.getElementById('logout-button')?.addEventListener('click', () => {
-            // Simplified logout: no need to call Supabase auth.
             sessionStorage.removeItem('pos-user');
             sessionStorage.removeItem('pos-cart');
             window.location.href = 'login.html';
