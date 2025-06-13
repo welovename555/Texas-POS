@@ -5,17 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ประวัติการขาย - POS System</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- REMOVED: <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script> -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="bg-slate-100 text-slate-800">
-    <!-- Loader, App View, Nav, Header structure is the same as other pages -->
     <div id="loader-overlay" class="loader-overlay fixed inset-0 flex items-center justify-center hidden">
         <div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-32 w-32"></div>
     </div>
-
     <div id="app-view" class="h-screen w-screen flex opacity-0 transition-opacity duration-300">
         <!-- Sidebar Navigation -->
         <nav class="w-20 bg-white shadow-md flex flex-col items-center py-6 space-y-6">
@@ -28,7 +26,6 @@
             </div>
             <button id="logout-button" class="mt-auto p-4 rounded-lg sidebar-icon text-red-500 hover:bg-red-500 hover:text-white" title="ออกจากระบบ"><i class="fa-solid fa-right-from-bracket fa-lg"></i></button>
         </nav>
-
         <!-- Main Content Area -->
         <div class="flex-1 flex flex-col overflow-hidden">
             <header class="bg-white shadow-sm p-4 flex justify-between items-center">
@@ -38,15 +35,9 @@
                     <p id="current-time" class="text-sm text-slate-500"></p>
                 </div>
             </header>
-
-            <main id="main-content" class="flex-1 overflow-y-auto p-6">
-                 <!-- Content will be rendered by script.js -->
-            </main>
+            <main id="main-content" class="flex-1 overflow-y-auto p-6"></main>
         </div>
     </div>
-    
-    <!-- Modal not needed on this page but structure can be kept for consistency -->
-    
     <script type="module" src="script.js"></script>
 </body>
 </html>
