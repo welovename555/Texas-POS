@@ -1,5 +1,5 @@
 // ===================================================================================
-// SCRIPT.JS - v4 (Security & Bug Fixes)
+// SCRIPT.JS - v5 (Employee ID Login)
 // ===================================================================================
 
 // Import Supabase client directly as an ES Module.
@@ -116,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderProductList();
         renderCart();
     }
-
+    
     function renderCategoryFilters() {
         const container = document.getElementById('category-filters');
         if (!container) return;
@@ -162,14 +162,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-
+    
     function renderCart() {
         const cartItemsEl = document.getElementById('cart-items');
         const cartTotalEl = document.getElementById('cart-total');
         if (!cartItemsEl || !cartTotalEl) return;
 
         const cart = getCart();
-        cartItemsEl.innerHTML = cart.length === 0
+        cartItemsEl.innerHTML = cart.length === 0 
             ? '<p class="text-slate-400 text-center mt-8">ยังไม่มีสินค้าในตะกร้า</p>'
             : cart.map(item => `
                 <div class="flex justify-between items-center mb-3 p-2 rounded-md hover:bg-slate-50">
@@ -181,11 +181,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button class="remove-item-btn text-red-500 hover:text-red-700 ml-2" data-product-id="${item.productId}"><i class="fa-solid fa-trash-can"></i></button>
                     </div>
                 </div>`).join('');
-
+        
         const total = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
         cartTotalEl.textContent = `฿${total.toFixed(2)}`;
     }
-    
+
     // Manage Products Page
     async function renderManageProductsPage() {
         const mainContent = document.getElementById('main-content');
@@ -306,7 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
         saveCart(cart);
         renderCart();
     };
-
+    
     const handleCartActions = (e) => {
         const target = e.target.closest('button');
         if (!target) return;
@@ -336,7 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
         saveCart([]);
         renderCart();
     };
-
+    
     async function checkout(paymentMethod) {
         const cart = getCart();
         if (cart.length === 0) return showNotification('กรุณาเพิ่มสินค้าลงในตะกร้าก่อน', 'warning');
@@ -355,7 +355,7 @@ document.addEventListener('DOMContentLoaded', () => {
         await fetchProducts();
         renderProductList();
     }
-
+    
     const showCheckoutModal = () => {
         if (getCart().length === 0) return showNotification('ตะกร้าว่างเปล่า', 'warning');
         if (!modalContent) return;
@@ -432,37 +432,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // --- AUTHENTICATION & APP INITIALIZATION ---
-    async function handleLogin(email, password) {
-        showLoader();
-        const { data, error } = await db.auth.signInWithPassword({ email, password });
-        hideLoader();
-
-        if (error) {
-            showNotification('อีเมลหรือรหัสผ่านไม่ถูกต้อง', 'error');
+    function handleLogin(employeeId) {
+        if (!employeeId) {
+            showNotification('กรุณาป้อนรหัสพนักงาน', 'warning');
             return;
         }
-
-        if (data.user) {
-            sessionStorage.setItem('pos-user', data.user.email);
-            window.location.href = 'index.html';
-        }
+        // Simplified login: just store the ID and go to the main page.
+        sessionStorage.setItem('pos-user', `พนักงาน #${employeeId}`);
+        window.location.href = 'index.html';
     }
 
     function initApp() {
+        // This logic runs on every page load.
+
         if (!state.currentUser && !window.location.pathname.endsWith('login.html')) {
+            // If not logged in and not on the login page, redirect to login.
             window.location.href = 'login.html';
             return;
         }
 
         if (window.location.pathname.endsWith('login.html')) {
+            // Logic specific to the login page.
             document.getElementById('login-form')?.addEventListener('submit', (e) => {
                 e.preventDefault();
-                const email = document.getElementById('email').value;
-                const password = document.getElementById('password').value;
-                handleLogin(email, password);
+                const employeeId = document.getElementById('employee-id').value;
+                handleLogin(employeeId);
             });
-            return;
+            return; // Stop further execution on login page.
         };
+
+        // --- Logic for all other pages (index, manage, etc.) ---
 
         const currentUserEl = document.getElementById('current-user');
         const currentTimeEl = document.getElementById('current-time');
@@ -483,12 +482,10 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'restock.html': renderRestockPage(); break;
         }
 
-        document.getElementById('logout-button')?.addEventListener('click', async () => {
-            showLoader();
-            await db.auth.signOut();
+        document.getElementById('logout-button')?.addEventListener('click', () => {
+            // Simplified logout: no need to call Supabase auth.
             sessionStorage.removeItem('pos-user');
             sessionStorage.removeItem('pos-cart');
-            hideLoader();
             window.location.href = 'login.html';
         });
 
