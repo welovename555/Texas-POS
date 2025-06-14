@@ -345,6 +345,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const { error: salesError } = await db.from('sales_log').insert(salesToLog);
         if (salesError) {
             hideLoader();
+            console.error('Checkout error:', salesError.message);
             return showNotification('เกิดข้อผิดพลาดในการบันทึกการขาย', 'error');
         }
         const stockUpdatePromises = cart.map(item => db.from('products').update({ quantity: item.stock - item.quantity }).eq('id', item.productId));
@@ -450,7 +451,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        // Hide error on new attempt
         loginErrorEl.classList.add('hidden');
 
         let username = '';
@@ -459,11 +459,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             username = `พนักงาน #${employeeId}`;
         }
-
-        // Login successful
+        
         showLoader();
         sessionStorage.setItem('pos-user', username);
-        // Add a small delay to show loader, makes it feel more responsive
         setTimeout(() => {
             window.location.href = 'index.html';
         }, 500);
@@ -481,7 +479,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const employeeId = document.getElementById('employee-id').value;
                 handleLogin(employeeId);
             });
-            return;
+            return; 
         };
 
         const currentUserEl = document.getElementById('current-user');
