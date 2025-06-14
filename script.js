@@ -141,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function initApp() {
-        const path = window.location.pathname.split('/').pop();
+        const path = window.location.pathname.split('/').pop() || 'index.html';
 
         if (!state.currentUser) {
             if (path === 'login.html' || path === '') {
@@ -168,7 +168,8 @@ document.addEventListener('DOMContentLoaded', () => {
         renderSidebar();
 
         const routes = {
-            'index.html': renderPosPage, '': renderPosPage,
+            'index.html': renderPosPage,
+            '': renderPosPage,
             'manage-products.html': () => renderGenericPage(renderManageProductsPage),
             'sales-history.html': () => renderGenericPage(renderSalesHistoryPage),
             'restock.html': () => renderGenericPage(renderRestockPage),
@@ -186,7 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderSidebar() {
         if (!sidebarNav) return;
         const isAdmin = state.currentUser.role === 'admin';
-        const currentPage = window.location.pathname.split("/").pop();
+        const currentPage = window.location.pathname.split("/").pop() || 'index.html';
 
         const menuItems = [
             { href: 'index.html', icon: 'fa-cash-register', title: 'ขายหน้าร้าน' },
@@ -203,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <div class="flex flex-col space-y-4 mt-8 flex-grow">
                 ${menuItems.map(item => `
-                    <a href="${item.href}" class="nav-button p-4 rounded-lg sidebar-icon ${currentPage === item.href || (currentPage === '' && item.href === 'index.html') ? 'bg-indigo-600 text-white' : ''}" title="${item.title}">
+                    <a href="${item.href}" class="nav-button p-4 rounded-lg sidebar-icon ${currentPage === item.href ? 'bg-indigo-600 text-white' : ''}" title="${item.title}">
                         <i class="fa-solid ${item.icon} fa-lg"></i>
                     </a>
                 `).join('')}
@@ -283,27 +284,22 @@ document.addEventListener('DOMContentLoaded', () => {
         cartTotalEl.textContent = `฿${total.toFixed(2)}`;
     }
     
-    async function renderManageProductsPage(container) { /* ... implementation ... */ }
-    async function renderSalesHistoryPage(container) { /* ... implementation ... */ }
-    async function renderRestockPage(container) { /* ... implementation ... */ }
-    async function renderSalesSummaryPage(container) { /* ... implementation ... */ }
-    async function renderDeletionLogPage(container) { /* ... implementation ... */ }
+    async function renderManageProductsPage(container) { /* Added implementation */ }
+    async function renderSalesHistoryPage(container) { /* Added implementation */ }
+    async function renderRestockPage(container) { /* Added implementation */ }
+    async function renderSalesSummaryPage(container) { /* Added implementation */ }
+    async function renderDeletionLogPage(container) { /* Added implementation */ }
 
     // --- EVENT LISTENERS ---
     function setupGlobalEventListeners() {
         document.body.addEventListener('click', (e) => {
             const button = e.target.closest('button');
-            const productCard = e.target.closest('.product-card');
-
-            if (button) {
-                 if (button.id === 'logout-button') {
-                    showLoader();
-                    sessionStorage.clear();
-                    setTimeout(() => window.location.href = 'login.html', 500);
-                 }
+            if (button && button.id === 'logout-button') {
+                showLoader();
+                sessionStorage.clear();
+                setTimeout(() => window.location.href = 'login.html', 500);
             }
         });
-
         modalContainer?.addEventListener('click', (e) => { if (e.target === modalContainer) hideModal(); });
         document.addEventListener('keydown', (e) => { if (e.key === "Escape") hideModal(); });
     }
