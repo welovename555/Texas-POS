@@ -1,5 +1,5 @@
 // ===================================================================================
-// SCRIPT.JS - v6 (Admin Role & Login Feedback)
+// SCRIPT.JS - v7 (Final - Real Authentication & Bug Fixes)
 // ===================================================================================
 
 // Import Supabase client directly as an ES Module.
@@ -11,14 +11,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- SUPABASE SETUP ---
     const SUPABASE_URL = 'https://imohhlypiuhnbpumlgli.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imltb2hobHlwaXVobmJwdW1sZ2xpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3NzgxMTMsImV4cCI6MjA2NTM1NDExM30.amsdnGl15xWzgdLxlRZOSJL-mIOfZ2-P7ST5cEyLt10';
-    const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+            // Persist session so user stays logged in
+            persistSession: true,
+            autoRefreshToken: true
+        }
+    });
 
     // --- GLOBAL STATE ---
     let state = {
         products: [],
         categories: [],
         activeCategory: 'ทั้งหมด',
-        currentUser: sessionStorage.getItem('pos-user') || null
+        // We get the user display name from session storage
+        currentUser: sessionStorage.getItem('pos-user-displayname') || null
     };
 
     // --- DOM ELEMENTS (COMMON) ---
@@ -233,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
             mainContent.innerHTML = `<div class="bg-white p-8 rounded-xl shadow-lg text-center">
                 <i class="fa-solid fa-circle-exclamation text-4xl text-red-500 mb-4"></i>
                 <h2 class="text-xl font-semibold">เกิดข้อผิดพลาด</h2>
-                <p class="text-slate-500 mt-2">ไม่สามารถโหลดประวัติการขายได้<br>กรุณาตรวจสอบว่าคุณได้สร้างตาราง 'sales_log' และเปิด RLS แล้ว</p>
+                <p class="text-slate-500 mt-2">ไม่สามารถโหลดประวัติการขายได้<br>กรุณาตรวจสอบการตั้งค่า RLS Policy ของคุณ</p>
             </div>`;
             return;
         }
@@ -441,7 +448,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // --- AUTHENTICATION & APP INITIALIZATION ---
-    function handleLogin(employeeId) {
+    async function handleLogin(employeeId) {
         const loginErrorEl = document.getElementById('login-error');
         if (!loginErrorEl) return;
 
@@ -452,6 +459,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         loginErrorEl.classList.add('hidden');
+        showLoader();
+
+        // Perform a real anonymous sign-in to get an 'authenticated' role
+        const { error } = await db.auth.signInAnonymously();
+        if (error) {
+            hideLoader();
+            showNotification('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
+            return;
+        }
 
         let username = '';
         if (employeeId === '2483') {
@@ -460,20 +476,25 @@ document.addEventListener('DOMContentLoaded', () => {
             username = `พนักงาน #${employeeId}`;
         }
         
-        showLoader();
-        sessionStorage.setItem('pos-user', username);
+        sessionStorage.setItem('pos-user-displayname', username);
+        
+        // Add a small delay to show loader, makes it feel more responsive
         setTimeout(() => {
             window.location.href = 'index.html';
         }, 500);
     }
 
-    function initApp() {
-        if (!state.currentUser && !window.location.pathname.endsWith('login.html')) {
+    async function initApp() {
+        const { data: { session } } = await db.auth.getSession();
+        
+        if (!session && !window.location.pathname.endsWith('login.html')) {
+            // If there's no active session and we are not on the login page, redirect.
             window.location.href = 'login.html';
             return;
         }
 
         if (window.location.pathname.endsWith('login.html')) {
+            // Logic specific to the login page.
             document.getElementById('login-form')?.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const employeeId = document.getElementById('employee-id').value;
@@ -482,6 +503,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return; 
         };
 
+        // --- Logic for all other pages (index, manage, etc.) ---
         const currentUserEl = document.getElementById('current-user');
         const currentTimeEl = document.getElementById('current-time');
 
@@ -501,9 +523,12 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'restock.html': renderRestockPage(); break;
         }
 
-        document.getElementById('logout-button')?.addEventListener('click', () => {
-            sessionStorage.removeItem('pos-user');
+        document.getElementById('logout-button')?.addEventListener('click', async () => {
+            showLoader();
+            await db.auth.signOut();
+            sessionStorage.removeItem('pos-user-displayname');
             sessionStorage.removeItem('pos-cart');
+            hideLoader();
             window.location.href = 'login.html';
         });
 
