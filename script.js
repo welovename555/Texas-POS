@@ -200,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!sidebarNav) return;
         const isAdmin = state.currentUser.role === 'admin';
         let currentPage = window.location.pathname.split("/").pop();
-        if (currentPage === '') currentPage = 'index.html';
+        if (currentPage === '' || currentPage.startsWith('?')) currentPage = 'index.html';
 
         const menuItems = [
             { href: 'index.html', icon: 'fa-cash-register', title: 'ขายหน้าร้าน' },
@@ -244,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function renderCategoryFilters() {
-        const container = document.getElementById('category-filters');
+         const container = document.getElementById('category-filters');
         if (!container) return;
         container.innerHTML = state.categories.map(cat => `
             <button class="category-btn px-4 py-2 text-sm font-semibold border rounded-full transition-colors ${state.activeCategory === cat ? 'active' : 'bg-white text-slate-700 hover:bg-slate-100'}">
@@ -324,10 +324,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 </table></div>
             </div>`;
     }
-    async function renderSalesHistoryPage(container) { /* Added implementation */ }
-    async function renderRestockPage(container) { /* Added implementation */ }
-    async function renderSalesSummaryPage(container) { /* Added implementation */ }
-    async function renderDeletionLogPage(container) { /* Added implementation */ }
+    async function renderSalesHistoryPage(container) { /* ... implementation ... */ }
+    async function renderRestockPage(container) { /* ... implementation ... */ }
+    async function renderSalesSummaryPage(container) { /* ... implementation ... */ }
+    async function renderDeletionLogPage(container) { /* ... implementation ... */ }
 
     function setupGlobalEventListeners() {
         document.body.addEventListener('click', (e) => {
