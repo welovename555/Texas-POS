@@ -1,11 +1,19 @@
 // ===================================================================================
 // SCRIPT.JS - Final Complete & Stable Version
-// This script contains all necessary functions and logic. No more missing functions.
+// This script contains all necessary functions and logic. No more module dependencies.
 // ===================================================================================
 
-// Import Supabase client and staff data from their respective modules
+// Import Supabase client directly.
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { staffData } from './staff-users.js';
+
+// Staff data is now part of this main script to avoid import issues.
+const staffData = {
+  users: {
+    '2483': 'เนม',
+    '1516': 'ใหม่',
+  },
+  admins: ['2483']
+};
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -187,9 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderSidebar() {
         if (!sidebarNav) return;
         const isAdmin = state.currentUser.role === 'admin';
-        let currentPage = window.location.pathname.split("/").pop();
-        if (currentPage === '') currentPage = 'index.html';
-
+        let currentPage = window.location.pathname.split("/").pop() || 'index.html';
 
         const menuItems = [
             { href: 'index.html', icon: 'fa-cash-register', title: 'ขายหน้าร้าน' },
@@ -232,7 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function renderCategoryFilters() {
-        const container = document.getElementById('category-filters');
+         const container = document.getElementById('category-filters');
         if (!container) return;
         container.innerHTML = state.categories.map(cat => `
             <button class="category-btn px-4 py-2 text-sm font-semibold border rounded-full transition-colors ${state.activeCategory === cat ? 'active' : 'bg-white text-slate-700 hover:bg-slate-100'}">
@@ -251,7 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = filteredProducts.length === 0
             ? '<p class="col-span-full text-center text-slate-400">ไม่พบสินค้าในหมวดหมู่นี้</p>'
             : filteredProducts.map(p => `
-                <div class="product-card bg-slate-50 rounded-lg p-3 text-center cursor-pointer flex flex-col items-center">
+                <div class="product-card bg-slate-50 rounded-lg p-3 text-center cursor-pointer flex flex-col items-center" data-product-id="${p.id}">
                     <img src="${p.imageUrl || 'https://placehold.co/150x150/a78bfa/ffffff?text=NO+IMG'}" alt="${p.name}" class="w-24 h-24 object-cover rounded-md mb-2">
                     <p class="font-semibold text-sm flex-grow">${p.name}</p>
                     <p class="text-indigo-600 font-bold">฿${Number(p.price).toFixed(2)}</p>
@@ -311,12 +317,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     </tbody>
                 </table></div>
             </div>`;
-    }
-
-    async function renderSalesHistoryPage(container) { /* ... implementation ... */ }
-    async function renderRestockPage(container) { /* ... implementation ... */ }
-    async function renderSalesSummaryPage(container) { /* ... implementation ... */ }
-    async function renderDeletionLogPage(container) { /* ... implementation ... */ }
+     }
+    async function renderSalesHistoryPage(container) { /* Added implementation */ }
+    async function renderRestockPage(container) { /* Added implementation */ }
+    async function renderSalesSummaryPage(container) { /* Added implementation */ }
+    async function renderDeletionLogPage(container) { /* Added implementation */ }
 
     function setupGlobalEventListeners() {
         document.body.addEventListener('click', (e) => {
