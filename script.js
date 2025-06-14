@@ -1,5 +1,5 @@
 // ===================================================================================
-// SCRIPT.JS - v7 (Final - Real Authentication & Bug Fixes)
+// SCRIPT.JS - v8 (Validated Employee ID Login)
 // ===================================================================================
 
 // Import Supabase client directly as an ES Module.
@@ -13,7 +13,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imltb2hobHlwaXVobmJwdW1sZ2xpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3NzgxMTMsImV4cCI6MjA2NTM1NDExM30.amsdnGl15xWzgdLxlRZOSJL-mIOfZ2-P7ST5cEyLt10';
     const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         auth: {
-            // Persist session so user stays logged in
             persistSession: true,
             autoRefreshToken: true
         }
@@ -24,7 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
         products: [],
         categories: [],
         activeCategory: 'ทั้งหมด',
-        // We get the user display name from session storage
         currentUser: sessionStorage.getItem('pos-user-displayname') || null
     };
 
@@ -451,50 +449,55 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleLogin(employeeId) {
         const loginErrorEl = document.getElementById('login-error');
         if (!loginErrorEl) return;
+        
+        // This object holds all valid employee IDs and their names.
+        const validEmployees = {
+            '2483': 'เนม (Admin)',
+            '1516': 'ใหม่'
+        };
 
         if (!employeeId) {
             loginErrorEl.textContent = 'กรุณาป้อนรหัสพนักงาน';
             loginErrorEl.classList.remove('hidden');
             return;
         }
-        
-        loginErrorEl.classList.add('hidden');
-        showLoader();
 
-        // Perform a real anonymous sign-in to get an 'authenticated' role
-        const { error } = await db.auth.signInAnonymously();
-        if (error) {
-            hideLoader();
-            showNotification('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
-            return;
-        }
+        // Check if the entered ID is in our list of valid employees
+        if (validEmployees[employeeId]) {
+            // Correct ID, proceed with anonymous sign-in for RLS
+            loginErrorEl.classList.add('hidden');
+            showLoader();
 
-        let username = '';
-        if (employeeId === '2483') {
-            username = 'Admin (2483)';
+            const { error } = await db.auth.signInAnonymously();
+            if (error) {
+                hideLoader();
+                showNotification('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
+                return;
+            }
+
+            const username = validEmployees[employeeId];
+            sessionStorage.setItem('pos-user-displayname', username);
+            
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 500);
+
         } else {
-            username = `พนักงาน #${employeeId}`;
+            // Incorrect ID
+            loginErrorEl.textContent = 'รหัสพนักงานไม่ถูกต้อง';
+            loginErrorEl.classList.remove('hidden');
         }
-        
-        sessionStorage.setItem('pos-user-displayname', username);
-        
-        // Add a small delay to show loader, makes it feel more responsive
-        setTimeout(() => {
-            window.location.href = 'index.html';
-        }, 500);
     }
 
     async function initApp() {
         const { data: { session } } = await db.auth.getSession();
         
         if (!session && !window.location.pathname.endsWith('login.html')) {
-            // If there's no active session and we are not on the login page, redirect.
             window.location.href = 'login.html';
             return;
         }
 
         if (window.location.pathname.endsWith('login.html')) {
-            // Logic specific to the login page.
             document.getElementById('login-form')?.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const employeeId = document.getElementById('employee-id').value;
@@ -503,7 +506,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return; 
         };
 
-        // --- Logic for all other pages (index, manage, etc.) ---
         const currentUserEl = document.getElementById('current-user');
         const currentTimeEl = document.getElementById('current-time');
 
