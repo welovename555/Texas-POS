@@ -3,43 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>เข้าสู่ระบบ - POS System</title>
+    <title>TEXAS | Login</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Teko:wght@700&family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        .teko-font {
+            font-family: 'Teko', sans-serif;
+        }
+    </style>
 </head>
-<body class="bg-slate-100">
-    <div id="login-view" class="flex items-center justify-center min-h-screen">
-        <div class="w-full max-w-sm p-8 space-y-6 bg-white rounded-xl shadow-lg">
+<body class="bg-slate-900">
+    <div class="flex items-center justify-center min-h-screen p-4 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1542871793-1e426344252a?q=80&w=2574&auto=format&fit=crop');">
+        <div class="w-full max-w-sm p-8 space-y-8 bg-black/50 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10">
             <div class="text-center">
-                <i class="fa-solid fa-id-card text-5xl text-indigo-600"></i>
-                <h1 class="mt-4 text-3xl font-bold">POS System</h1>
-                <p class="text-slate-500">กรุณาป้อนรหัสพนักงานเพื่อเข้าสู่ระบบ</p>
+                <h1 class="teko-font text-7xl font-bold text-white tracking-widest">TEXAS</h1>
+                <p class="text-slate-300">กรุณาป้อนรหัสพนักงานเพื่อเข้าสู่ระบบ</p>
             </div>
-            <form id="login-form" class="space-y-4">
-                <div>
-                    <label for="employee-id" class="text-sm font-medium text-slate-600">รหัสพนักงาน</label>
+            <form id="login-form" class="space-y-6">
+                <div class="relative">
+                    <span class="absolute left-4 top-3.5 text-slate-400">
+                        <i class="fa-solid fa-id-badge"></i>
+                    </span>
                     <input 
                         type="text" 
                         id="employee-id" 
                         inputmode="numeric"
                         pattern="[0-9]*"
                         oninput="this.value = this.value.replace(/[^0-9]/g, '')"
-                        class="mt-1 block w-full px-3 py-3 text-center text-xl tracking-widest bg-slate-50 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" 
+                        class="pl-12 pr-4 block w-full py-3 text-lg text-center text-white bg-white/10 border border-white/20 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-indigo-500 focus:border-indigo-500 transition-all" 
+                        placeholder="รหัสพนักงาน"
                         required 
                         autocomplete="off"
                     >
                 </div>
-                <button type="submit" class="w-full py-3 px-4 text-white bg-indigo-600 rounded-md font-semibold hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                <button type="submit" class="w-full py-3 px-4 text-white bg-indigo-600 rounded-xl font-semibold text-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-indigo-500 transition-transform hover:scale-105">
                     เข้าสู่ระบบ
                 </button>
-                <p id="login-error" class="text-center text-red-500 text-sm pt-2 h-6 hidden"></p>
+                <p id="login-error" class="text-center text-red-400 font-semibold text-sm pt-1 h-6 hidden"></p>
             </form>
         </div>
     </div>
-    <div id="loader-overlay" class="loader-overlay fixed inset-0 flex items-center justify-center hidden"></div>
-    <!-- Add staff-users.js before script.js -->
+    <div id="loader-overlay" class="fixed inset-0 bg-slate-900/80 flex items-center justify-center hidden">
+        <div class="loader ease-linear rounded-full border-8 border-t-8 border-slate-500 h-32 w-32" style="border-top-color: #6366f1;"></div>
+    </div>
     <script type="module" src="staff-users.js"></script>
     <script type="module" src="script.js"></script>
 </body>
