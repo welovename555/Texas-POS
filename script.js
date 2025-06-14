@@ -1,5 +1,5 @@
 // ===================================================================================
-// SCRIPT.JS - v9 (Definitive Fix for Auth & Data Loading)
+// SCRIPT.JS - v10 (Definitive Fix for Auth & Data Loading)
 // ===================================================================================
 
 // Import Supabase client directly as an ES Module.
@@ -15,13 +15,11 @@ document.addEventListener('DOMContentLoaded', () => {
         auth: {
             persistSession: true,
             autoRefreshToken: true,
-            // When a user logs out, clear the session from Supabase as well
             detectSessionInUrl: true 
         }
     });
 
     // --- GLOBAL STATE ---
-    // The single source of truth for the user's display name
     let state = {
         products: [],
         categories: [],
@@ -450,7 +448,6 @@ document.addEventListener('DOMContentLoaded', () => {
             showLoader();
 
             const { data: { session } } = await db.auth.getSession();
-            // Sign in only if there is no session, to avoid creating multiple sessions
             if (!session) {
                 const { error } = await db.auth.signInAnonymously();
                 if (error) {
@@ -475,15 +472,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const userDisplayName = sessionStorage.getItem('pos-user-displayname');
         const { data: { session } } = await db.auth.getSession();
         
-        // This is the definitive check. If either is missing, the user is not logged in.
         if (!session || !userDisplayName) {
             if (!window.location.pathname.endsWith('login.html')) {
-                // If not on login page, force a full logout and redirect
                 await db.auth.signOut();
                 sessionStorage.clear();
                 window.location.href = 'login.html';
             } else {
-                // We are on the login page, which is correct. Set up the form.
                 document.getElementById('login-form')?.addEventListener('submit', (e) => {
                     e.preventDefault();
                     const employeeId = document.getElementById('employee-id').value;
@@ -493,7 +487,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return; 
         }
 
-        // --- Logic for all authenticated pages ---
         const currentUserEl = document.getElementById('current-user');
         const currentTimeEl = document.getElementById('current-time');
 
@@ -513,7 +506,6 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'restock.html': renderGenericPage('เติมสต็อก', renderRestockPage); break;
         }
         
-        // --- Setup Global Event Listeners for Authenticated Pages ---
         document.getElementById('logout-button')?.addEventListener('click', async () => {
             showLoader();
             await db.auth.signOut();
