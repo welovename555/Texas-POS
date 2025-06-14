@@ -142,7 +142,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initApp() {
         if (!state.currentUser) {
-            if (window.location.pathname.endsWith('login.html') || window.location.pathname.endsWith('/')) {
+            const path = window.location.pathname.split('/').pop();
+            if (path === 'login.html' || path === '') {
                 document.getElementById('login-form')?.addEventListener('submit', (e) => {
                     e.preventDefault();
                     handleLogin(document.getElementById('employee-id').value);
@@ -212,14 +213,15 @@ document.addEventListener('DOMContentLoaded', () => {
             </button>
         `;
     }
-    
+
     async function renderGenericPage(renderer) {
         if (!mainContent) return;
         showLoader();
         await renderer(mainContent);
         hideLoader();
     }
-
+    
+    // --- All other render functions ---
     async function renderPosPage() {
         await fetchProducts();
         renderCategoryFilters();
@@ -227,16 +229,15 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCart();
     }
 
-    function renderCategoryFilters() { /* Implementation... */ }
-    function renderProductList() { /* Implementation... */ }
-    function renderCart() { /* Implementation... */ }
-    async function renderManageProductsPage(container) { /* Implementation... */ }
-    async function renderSalesHistoryPage(container) { /* Implementation... */ }
-    async function renderRestockPage(container) { /* Implementation... */ }
-    async function renderSalesSummaryPage(container) { /* Implementation... */ }
-    async function renderDeletionLogPage(container) { /* Implementation... */ }
+    function renderCategoryFilters() { /* ... implementation from previous version ... */ }
+    function renderProductList() { /* ... implementation from previous version ... */ }
+    function renderCart() { /* ... implementation from previous version ... */ }
+    async function renderManageProductsPage(container) { /* ... implementation from previous version ... */ }
+    async function renderSalesHistoryPage(container) { /* ... implementation from previous version ... */ }
+    async function renderRestockPage(container) { /* ... implementation from previous version ... */ }
+    async function renderSalesSummaryPage(container) { /* ... implementation from previous version ... */ }
+    async function renderDeletionLogPage(container) { /* ... implementation from previous version ... */ }
 
-    // --- EVENT LISTENERS ---
     function setupGlobalEventListeners() {
         document.body.addEventListener('click', (e) => {
             const button = e.target.closest('button');
@@ -245,12 +246,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 sessionStorage.clear();
                 setTimeout(() => window.location.href = 'login.html', 500);
             }
-            // ... other listeners
         });
-
         modalContainer?.addEventListener('click', (e) => { if (e.target === modalContainer) hideModal(); });
         document.addEventListener('keydown', (e) => { if (e.key === "Escape") hideModal(); });
     }
-
+    
     initApp();
 });
