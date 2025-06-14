@@ -141,8 +141,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function initApp() {
+        const path = window.location.pathname.split('/').pop();
+
         if (!state.currentUser) {
-            const path = window.location.pathname.split('/').pop();
             if (path === 'login.html' || path === '') {
                 document.getElementById('login-form')?.addEventListener('submit', (e) => {
                     e.preventDefault();
@@ -166,7 +167,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         renderSidebar();
 
-        const path = window.location.pathname.split("/").pop();
         const routes = {
             'index.html': renderPosPage, '': renderPosPage,
             'manage-products.html': () => renderGenericPage(renderManageProductsPage),
@@ -198,17 +198,17 @@ document.addEventListener('DOMContentLoaded', () => {
         ].filter(Boolean); 
 
         sidebarNav.innerHTML = `
-            <div class="text-indigo-600">
-                 <h1 class="font-bold text-2xl tracking-widest text-center text-indigo-600">TEXAS</h1>
+            <div class="text-center">
+                 <h1 class="font-bold text-2xl tracking-widest text-indigo-600">TEXAS</h1>
             </div>
-            <div class="flex flex-col space-y-4 mt-8">
+            <div class="flex flex-col space-y-4 mt-8 flex-grow">
                 ${menuItems.map(item => `
                     <a href="${item.href}" class="nav-button p-4 rounded-lg sidebar-icon ${currentPage === item.href || (currentPage === '' && item.href === 'index.html') ? 'bg-indigo-600 text-white' : ''}" title="${item.title}">
                         <i class="fa-solid ${item.icon} fa-lg"></i>
                     </a>
                 `).join('')}
             </div>
-            <button id="logout-button" class="mt-auto p-4 rounded-lg sidebar-icon text-red-500 hover:bg-red-500 hover:text-white" title="ออกจากระบบ">
+            <button id="logout-button" class="p-4 rounded-lg sidebar-icon text-red-500 hover:bg-red-500 hover:text-white" title="ออกจากระบบ">
                 <i class="fa-solid fa-right-from-bracket fa-lg"></i>
             </button>
         `;
@@ -228,25 +228,82 @@ document.addEventListener('DOMContentLoaded', () => {
         renderProductList();
         renderCart();
     }
+    
+    function renderCategoryFilters() {
+         const container = document.getElementById('category-filters');
+        if (!container) return;
+        container.innerHTML = state.categories.map(cat => `
+            <button class="category-btn px-4 py-2 text-sm font-semibold border rounded-full transition-colors ${state.activeCategory === cat ? 'active' : 'bg-white text-slate-700 hover:bg-slate-100'}">
+                ${cat}
+            </button>
+        `).join('');
+    }
 
-    function renderCategoryFilters() { /* ... implementation from previous version ... */ }
-    function renderProductList() { /* ... implementation from previous version ... */ }
-    function renderCart() { /* ... implementation from previous version ... */ }
-    async function renderManageProductsPage(container) { /* ... implementation from previous version ... */ }
-    async function renderSalesHistoryPage(container) { /* ... implementation from previous version ... */ }
-    async function renderRestockPage(container) { /* ... implementation from previous version ... */ }
-    async function renderSalesSummaryPage(container) { /* ... implementation from previous version ... */ }
-    async function renderDeletionLogPage(container) { /* ... implementation from previous version ... */ }
+    function renderProductList() {
+        const container = document.getElementById('product-list');
+        if (!container) return;
+        const filteredProducts = state.activeCategory === 'ทั้งหมด'
+            ? state.products
+            : state.products.filter(p => p.category === state.activeCategory);
 
+        if (filteredProducts.length === 0) {
+            container.innerHTML = '<p class="col-span-full text-center text-slate-400">ไม่พบสินค้าในหมวดหมู่นี้</p>';
+            return;
+        }
+        container.innerHTML = filteredProducts.map(p => `
+                <div class="product-card bg-slate-50 rounded-lg p-3 text-center cursor-pointer flex flex-col items-center">
+                    <img src="${p.imageUrl || 'https://placehold.co/150x150/a78bfa/ffffff?text=NO+IMG'}" alt="${p.name}" class="w-24 h-24 object-cover rounded-md mb-2">
+                    <p class="font-semibold text-sm flex-grow">${p.name}</p>
+                    <p class="text-indigo-600 font-bold">฿${Number(p.price).toFixed(2)}</p>
+                    <p class="text-xs ${p.stock < 10 ? 'text-red-500 font-bold' : 'text-slate-400'}">คงเหลือ: ${p.stock}</p>
+                </div>
+            `).join('');
+    }
+
+    function renderCart() {
+        const cartItemsEl = document.getElementById('cart-items');
+        const cartTotalEl = document.getElementById('cart-total');
+        if (!cartItemsEl || !cartTotalEl) return;
+
+        const cart = getCart();
+        cartItemsEl.innerHTML = cart.length === 0 
+            ? '<p class="text-slate-400 text-center mt-8">ยังไม่มีสินค้าในตะกร้า</p>'
+            : cart.map(item => `
+                <div class="flex justify-between items-center mb-3 p-2 rounded-md hover:bg-slate-50">
+                    <div><p class="font-semibold">${item.name}</p><p class="text-sm text-slate-500">฿${Number(item.price).toFixed(2)}</p></div>
+                    <div class="flex items-center gap-2">
+                        <button class="quantity-change-btn w-6 h-6 bg-slate-200 rounded-full" data-product-id="${item.productId}" data-change="-1">-</button>
+                        <span>${item.quantity}</span>
+                        <button class="quantity-change-btn w-6 h-6 bg-slate-200 rounded-full" data-product-id="${item.productId}" data-change="1">+</button>
+                        <button class="remove-item-btn text-red-500 hover:text-red-700 ml-2" data-product-id="${item.productId}"><i class="fa-solid fa-trash-can"></i></button>
+                    </div>
+                </div>`).join('');
+        
+        const total = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
+        cartTotalEl.textContent = `฿${total.toFixed(2)}`;
+    }
+    
+    async function renderManageProductsPage(container) { /* ... implementation ... */ }
+    async function renderSalesHistoryPage(container) { /* ... implementation ... */ }
+    async function renderRestockPage(container) { /* ... implementation ... */ }
+    async function renderSalesSummaryPage(container) { /* ... implementation ... */ }
+    async function renderDeletionLogPage(container) { /* ... implementation ... */ }
+
+    // --- EVENT LISTENERS ---
     function setupGlobalEventListeners() {
         document.body.addEventListener('click', (e) => {
             const button = e.target.closest('button');
-            if (button && button.id === 'logout-button') {
-                showLoader();
-                sessionStorage.clear();
-                setTimeout(() => window.location.href = 'login.html', 500);
+            const productCard = e.target.closest('.product-card');
+
+            if (button) {
+                 if (button.id === 'logout-button') {
+                    showLoader();
+                    sessionStorage.clear();
+                    setTimeout(() => window.location.href = 'login.html', 500);
+                 }
             }
         });
+
         modalContainer?.addEventListener('click', (e) => { if (e.target === modalContainer) hideModal(); });
         document.addEventListener('keydown', (e) => { if (e.key === "Escape") hideModal(); });
     }
