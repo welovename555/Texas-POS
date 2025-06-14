@@ -1,5 +1,5 @@
 // ===================================================================================
-// SCRIPT.JS - v8 (Validated Employee ID Login)
+// SCRIPT.JS - v9 (Definitive Fix for Auth & Data Loading)
 // ===================================================================================
 
 // Import Supabase client directly as an ES Module.
@@ -14,11 +14,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         auth: {
             persistSession: true,
-            autoRefreshToken: true
+            autoRefreshToken: true,
+            // When a user logs out, clear the session from Supabase as well
+            detectSessionInUrl: true 
         }
     });
 
     // --- GLOBAL STATE ---
+    // The single source of truth for the user's display name
     let state = {
         products: [],
         categories: [],
@@ -70,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (modalContent) modalContent.innerHTML = '';
         }, 300);
     };
-
+    
     const showConfirmation = (message, onConfirm) => {
         if (!modalContent) return;
         modalContent.innerHTML = `
@@ -89,22 +92,20 @@ document.addEventListener('DOMContentLoaded', () => {
         modalContent.querySelector('.cancel-modal-btn').onclick = hideModal;
     };
 
+
     // --- DATA FETCHING ---
     async function fetchProducts() {
         showLoader();
         const { data, error } = await db.from('products').select('*').order('product_name', { ascending: true });
         hideLoader();
         if (error) {
-            console.error('Error fetching products:', error);
+            console.error('Error fetching products:', error.message);
             showNotification('ไม่สามารถโหลดข้อมูลสินค้าได้', 'error');
             return;
         }
         state.products = data.map(p => ({
-            id: p.id,
-            name: p.product_name,
-            stock: p.quantity,
-            price: p.price,
-            category: p.category
+            id: p.id, name: p.product_name, stock: p.quantity,
+            price: p.price, category: p.category
         }));
         const categories = [...new Set(state.products.map(p => p.category || 'ไม่มีหมวดหมู่'))];
         state.categories = ['ทั้งหมด', ...categories];
@@ -113,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- CART MANAGEMENT ---
     const getCart = () => JSON.parse(sessionStorage.getItem('pos-cart')) || [];
     const saveCart = (cart) => sessionStorage.setItem('pos-cart', JSON.stringify(cart));
-
+    
     // --- PAGE-SPECIFIC RENDER FUNCTIONS ---
     async function renderPosPage() {
         await fetchProducts();
@@ -125,24 +126,23 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderCategoryFilters() {
         const container = document.getElementById('category-filters');
         if (!container) return;
-        container.innerHTML = '';
-        state.categories.forEach(cat => {
-            const button = document.createElement('button');
-            button.textContent = cat;
-            button.className = `category-btn px-4 py-2 text-sm font-semibold border rounded-full transition-colors ${state.activeCategory === cat ? 'active' : 'bg-white text-slate-700 hover:bg-slate-100'}`;
-            button.onclick = () => {
-                state.activeCategory = cat;
+        container.innerHTML = state.categories.map(cat => `
+            <button class="category-btn px-4 py-2 text-sm font-semibold border rounded-full transition-colors ${state.activeCategory === cat ? 'active' : 'bg-white text-slate-700 hover:bg-slate-100'}">
+                ${cat}
+            </button>
+        `).join('');
+        container.querySelectorAll('.category-btn').forEach((btn, index) => {
+            btn.onclick = () => {
+                state.activeCategory = state.categories[index];
                 renderCategoryFilters();
                 renderProductList();
             };
-            container.appendChild(button);
         });
     }
 
     function renderProductList() {
         const container = document.getElementById('product-list');
         if (!container) return;
-        container.innerHTML = '';
         const filteredProducts = state.activeCategory === 'ทั้งหมด'
             ? state.products
             : state.products.filter(p => p.category === state.activeCategory);
@@ -151,21 +151,16 @@ document.addEventListener('DOMContentLoaded', () => {
             container.innerHTML = '<p class="col-span-full text-center text-slate-400">ไม่พบสินค้าในหมวดหมู่นี้</p>';
             return;
         }
-        filteredProducts.forEach(p => {
-            if (p.stock > 0) {
-                const productCard = document.createElement('div');
-                productCard.className = `product-card bg-slate-50 rounded-lg p-3 text-center cursor-pointer flex flex-col items-center`;
-                productCard.dataset.productId = p.id;
-                productCard.innerHTML = `
+        container.innerHTML = filteredProducts
+            .filter(p => p.stock > 0)
+            .map(p => `
+                <div class="product-card bg-slate-50 rounded-lg p-3 text-center cursor-pointer flex flex-col items-center" data-product-id="${p.id}">
                     <img src="https://placehold.co/150x150/a78bfa/ffffff?text=${encodeURIComponent(p.name)}" alt="${p.name}" class="w-24 h-24 object-cover rounded-md mb-2">
                     <p class="font-semibold text-sm flex-grow">${p.name}</p>
                     <p class="text-indigo-600 font-bold">฿${Number(p.price).toFixed(2)}</p>
                     <p class="text-xs ${p.stock < 10 ? 'text-red-500 font-bold' : 'text-slate-400'}">คงเหลือ: ${p.stock}</p>
-                `;
-                productCard.addEventListener('click', () => addToCart(p.id));
-                container.appendChild(productCard);
-            }
-        });
+                </div>
+            `).join('');
     }
     
     function renderCart() {
@@ -191,14 +186,18 @@ document.addEventListener('DOMContentLoaded', () => {
         cartTotalEl.textContent = `฿${total.toFixed(2)}`;
     }
 
-    // Manage Products Page
-    async function renderManageProductsPage() {
+    // --- GENERIC PAGE RENDER LOGIC ---
+    async function renderGenericPage(title, renderer) {
         const mainContent = document.getElementById('main-content');
         if (!mainContent) return;
         showLoader();
-        await fetchProducts();
+        await renderer(mainContent);
         hideLoader();
-        mainContent.innerHTML = `
+    }
+
+    async function renderManageProductsPage(container) {
+        await fetchProducts();
+        container.innerHTML = `
             <div class="bg-white p-6 rounded-xl shadow-lg">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-xl font-semibold">รายการสินค้าทั้งหมด</h2>
@@ -226,23 +225,18 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
     }
 
-    // Sales History Page
-    async function renderSalesHistoryPage() {
-        const mainContent = document.getElementById('main-content');
-        if (!mainContent) return;
-        showLoader();
+    async function renderSalesHistoryPage(container) {
         const { data, error } = await db.from('sales_log').select(`*, products(product_name)`).order('created_at', { ascending: false });
-        hideLoader();
         if (error) {
             console.error("Error fetching sales history:", error);
-            mainContent.innerHTML = `<div class="bg-white p-8 rounded-xl shadow-lg text-center">
+            container.innerHTML = `<div class="bg-white p-8 rounded-xl shadow-lg text-center">
                 <i class="fa-solid fa-circle-exclamation text-4xl text-red-500 mb-4"></i>
                 <h2 class="text-xl font-semibold">เกิดข้อผิดพลาด</h2>
                 <p class="text-slate-500 mt-2">ไม่สามารถโหลดประวัติการขายได้<br>กรุณาตรวจสอบการตั้งค่า RLS Policy ของคุณ</p>
             </div>`;
             return;
         }
-        mainContent.innerHTML = `
+        container.innerHTML = `
             <div class="bg-white p-6 rounded-xl shadow-lg">
                 <h2 class="text-xl font-semibold mb-4">ประวัติการขาย</h2>
                 <div class="overflow-x-auto"><table class="w-full text-left">
@@ -263,14 +257,9 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
     }
 
-    // Restock Page
-    async function renderRestockPage() {
-        const mainContent = document.getElementById('main-content');
-        if (!mainContent) return;
-        showLoader();
+    async function renderRestockPage(container) {
         await fetchProducts();
-        hideLoader();
-        mainContent.innerHTML = `
+        container.innerHTML = `
            <div class="bg-white p-6 rounded-xl shadow-lg">
                <h2 class="text-xl font-semibold mb-4">สรุปและเติมสต็อกสินค้า</h2>
                <div class="overflow-x-auto"><table class="w-full text-left">
@@ -294,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
                </table></div>
            </div>`;
     }
-
+    
     // --- ACTION HANDLERS ---
     const addToCart = (productId) => {
         const product = state.products.find(p => p.id === productId);
@@ -311,7 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
         saveCart(cart);
         renderCart();
     };
-    
+
     const handleCartActions = (e) => {
         const target = e.target.closest('button');
         if (!target) return;
@@ -336,11 +325,8 @@ document.addEventListener('DOMContentLoaded', () => {
         saveCart(cart);
         renderCart();
     };
-
-    const clearCart = () => {
-        saveCart([]);
-        renderCart();
-    };
+    
+    const clearCart = () => { saveCart([]); renderCart(); };
     
     async function checkout(paymentMethod) {
         const cart = getCart();
@@ -399,7 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showModal();
         document.getElementById('product-form').onsubmit = (e) => { e.preventDefault(); saveProduct(new FormData(e.target)); };
     };
-
+    
     async function saveProduct(formData) {
         const productId = formData.get('id') ? parseInt(formData.get('id')) : null;
         const productData = Object.fromEntries(formData.entries());
@@ -410,26 +396,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (error) return showNotification('เกิดข้อผิดพลาดในการบันทึกสินค้า', 'error');
         showNotification('บันทึกข้อมูลสินค้าสำเร็จ!', 'success');
         hideModal();
-        renderManageProductsPage();
+        renderGenericPage('จัดการสินค้า', renderManageProductsPage);
     }
-
+    
     async function deleteProduct(productId) {
         const product = state.products.find(p => p.id === parseInt(productId));
         showConfirmation(`ยืนยันการลบสินค้า "${product.name}"?`, async () => {
             showLoader();
-            // Before deleting the product, delete related sales logs
             const { error: salesLogError } = await db.from('sales_log').delete().eq('product_id', productId);
             if (salesLogError) {
                  hideLoader();
                  return showNotification('เกิดข้อผิดพลาดในการลบประวัติการขายของสินค้า', 'error');
             }
-            // Now delete the product
             const { error: productError } = await db.from('products').delete().eq('id', productId);
             hideLoader();
             if (productError) return showNotification(`เกิดข้อผิดพลาดในการลบสินค้า`, 'error');
             
             showNotification(`ลบสินค้าสำเร็จ!`, 'success');
-            renderManageProductsPage();
+            renderGenericPage('จัดการสินค้า', renderManageProductsPage);
         });
     }
 
@@ -442,7 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
         hideLoader();
         if (error) return showNotification('เกิดข้อผิดพลาดในการเติมสต็อก', 'error');
         showNotification(`เติมสต็อก "${product.name}" สำเร็จ!`, 'success');
-        renderRestockPage();
+        renderGenericPage('เติมสต็อก', renderRestockPage);
     }
     
     // --- AUTHENTICATION & APP INITIALIZATION ---
@@ -450,7 +434,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const loginErrorEl = document.getElementById('login-error');
         if (!loginErrorEl) return;
         
-        // This object holds all valid employee IDs and their names.
         const validEmployees = {
             '2483': 'เนม (Admin)',
             '1516': 'ใหม่'
@@ -462,50 +445,55 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Check if the entered ID is in our list of valid employees
         if (validEmployees[employeeId]) {
-            // Correct ID, proceed with anonymous sign-in for RLS
             loginErrorEl.classList.add('hidden');
             showLoader();
 
-            const { error } = await db.auth.signInAnonymously();
-            if (error) {
-                hideLoader();
-                showNotification('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
-                return;
+            const { data: { session } } = await db.auth.getSession();
+            // Sign in only if there is no session, to avoid creating multiple sessions
+            if (!session) {
+                const { error } = await db.auth.signInAnonymously();
+                if (error) {
+                    hideLoader();
+                    showNotification('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
+                    return;
+                }
             }
-
+            
             const username = validEmployees[employeeId];
             sessionStorage.setItem('pos-user-displayname', username);
             
-            setTimeout(() => {
-                window.location.href = 'index.html';
-            }, 500);
+            setTimeout(() => { window.location.href = 'index.html'; }, 500);
 
         } else {
-            // Incorrect ID
             loginErrorEl.textContent = 'รหัสพนักงานไม่ถูกต้อง';
             loginErrorEl.classList.remove('hidden');
         }
     }
 
     async function initApp() {
+        const userDisplayName = sessionStorage.getItem('pos-user-displayname');
         const { data: { session } } = await db.auth.getSession();
         
-        if (!session && !window.location.pathname.endsWith('login.html')) {
-            window.location.href = 'login.html';
-            return;
+        // This is the definitive check. If either is missing, the user is not logged in.
+        if (!session || !userDisplayName) {
+            if (!window.location.pathname.endsWith('login.html')) {
+                // If not on login page, force a full logout and redirect
+                await db.auth.signOut();
+                sessionStorage.clear();
+                window.location.href = 'login.html';
+            } else {
+                // We are on the login page, which is correct. Set up the form.
+                document.getElementById('login-form')?.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const employeeId = document.getElementById('employee-id').value;
+                    handleLogin(employeeId);
+                });
+            }
+            return; 
         }
 
-        if (window.location.pathname.endsWith('login.html')) {
-            document.getElementById('login-form')?.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const employeeId = document.getElementById('employee-id').value;
-                handleLogin(employeeId);
-            });
-            return; 
-        };
-
+        // --- Logic for all authenticated pages ---
         const currentUserEl = document.getElementById('current-user');
         const currentTimeEl = document.getElementById('current-time');
 
@@ -520,16 +508,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const path = window.location.pathname.split("/").pop();
         switch (path) {
             case 'index.html': case '': renderPosPage(); break;
-            case 'manage-products.html': renderManageProductsPage(); break;
-            case 'sales-history.html': renderSalesHistoryPage(); break;
-            case 'restock.html': renderRestockPage(); break;
+            case 'manage-products.html': renderGenericPage('จัดการสินค้า', renderManageProductsPage); break;
+            case 'sales-history.html': renderGenericPage('ประวัติการขาย', renderSalesHistoryPage); break;
+            case 'restock.html': renderGenericPage('เติมสต็อก', renderRestockPage); break;
         }
-
+        
+        // --- Setup Global Event Listeners for Authenticated Pages ---
         document.getElementById('logout-button')?.addEventListener('click', async () => {
             showLoader();
             await db.auth.signOut();
-            sessionStorage.removeItem('pos-user-displayname');
-            sessionStorage.removeItem('pos-cart');
+            sessionStorage.clear();
             hideLoader();
             window.location.href = 'login.html';
         });
@@ -551,6 +539,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (input) handleRestock(parseInt(id), parseInt(input.value));
             }
             if (button.classList.contains('cancel-modal-btn')) hideModal();
+            
+            if (button.closest('.product-card')) {
+                addToCart(parseInt(button.closest('.product-card').dataset.productId));
+            }
         });
 
         modalContainer?.addEventListener('click', (e) => { if (e.target === modalContainer) hideModal(); });
