@@ -3,12 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TEXAS POS</title>
+    <title>TEXAS POS - Login</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 </head>
 <body>
-    <h1>TEXAS POS Application</h1>
+    <div id="app">
+        <div id="login-container">
+            <h2><i class="fa-solid fa-store"></i> TEXAS POS</h2>
+            <p>กรุณาป้อนรหัสพนักงานเพื่อเข้าสู่ระบบ</p>
+            <div class="input-group">
+                <i class="fa-solid fa-id-card"></i>
+                <input type="text" id="employee-id-input" placeholder="รหัสพนักงาน">
+            </div>
+            <button id="login-button">เข้าสู่ระบบ</button>
+        </div>
+    </div>
     <script type="module" src="script.js"></script>
 </body>
 </html>
