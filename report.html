@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TEXAS POS - รายงาน</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+</head>
+<body class="bg-gray-100 p-4 sm:p-6 lg:p-8">
+    <div class="max-w-7xl mx-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-800">รายงานการขาย</h1>
+            <a href="pos.html" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">← กลับหน้าขาย</a>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div><label for="date-start" class="block text-sm font-medium text-gray-700">วันที่เริ่มต้น</label><input type="date" id="date-start" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500"></div>
+                <div><label for="date-end" class="block text-sm font-medium text-gray-700">วันที่สิ้นสุด</label><input type="date" id="date-end" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500"></div>
+                <div><label for="employee-filter" class="block text-sm font-medium text-gray-700">พนักงาน</label><select id="employee-filter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500"><option value="">ทั้งหมด</option></select></div>
+                <div class="flex items-end"><button id="filter-btn" class="w-full bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">ค้นหา</button></div>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-white p-4 rounded-lg shadow-md text-center"><h3 class="text-gray-500">ยอดขายรวม</h3><p id="summary-total-sales" class="text-3xl font-bold text-green-600">฿0.00</p></div>
+            <div class="bg-white p-4 rounded-lg shadow-md text-center"><h3 class="text-gray-500">จำนวนบิล</h3><p id="summary-total-bills" class="text-3xl font-bold text-blue-600">0</p></div>
+            <div class="bg-white p-4 rounded-lg shadow-md text-center"><h3 class="text-gray-500">สินค้าขายดี</h3><p id="summary-best-seller" class="text-xl font-bold text-purple-600">-</p></div>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow-md">
+            <div class="flex justify-end gap-2 mb-4"><button id="export-csv-btn" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm">ดาวน์โหลด CSV</button><button id="export-pdf-btn" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 text-sm">ดาวน์โหลด PDF</button></div>
+            <div class="overflow-x-auto">
+                <table id="sales-table" class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50"><tr><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เลขที่บิล</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เวลา</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">พนักงาน</th><th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">ยอดรวม</th><th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">ช่องทาง</th><th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">รายการ</th></tr></thead>
+                    <tbody id="report-table-body" class="bg-white divide-y divide-gray-200"><tr><td colspan="6" class="p-4 text-center text-gray-500">กำลังโหลดข้อมูล...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="assets/js/supabase-client.js"></script>
+    <script src="assets/js/report.js"></script>
+</body>
+</html>
