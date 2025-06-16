@@ -1,7 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // --- Security & Session Check ---
     const currentEmployee = JSON.parse(localStorage.getItem('currentEmployee'));
-
-    // Security check: if not logged in, redirect to login page
     if (!currentEmployee) {
         window.location.href = 'index.html';
         return;
@@ -11,17 +10,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let products = [];
     let categories = [];
     let cart = []; // { productId, name, price, quantity }
+    let idleTimer; // For the auto-logout feature
 
     // --- Elements ---
     const employeeInfoEl = document.getElementById('employee-info');
     const adminMenuLink = document.getElementById('admin-menu-link');
     const logoutBtn = document.getElementById('logout-btn');
     const datetimeEl = document.getElementById('datetime');
-    const productListEl = document.getElementById('product-list');
     const categoryFiltersEl = document.getElementById('category-filters');
-    const searchInput = document.getElementById('search-product');
+    const productListEl = document.getElementById('product-list');
     const orderItemsEl = document.getElementById('order-items');
-    const emptyCartEl = document.getElementById('empty-cart');
+    const emptyCartMessageEl = document.getElementById('empty-cart-message');
     const totalPriceEl = document.getElementById('total-price');
     const checkoutBtn = document.getElementById('checkout-btn');
     
@@ -36,49 +35,80 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelPaymentBtn = document.getElementById('cancel-payment-btn');
     const successModal = document.getElementById('success-modal');
     const successChangeInfo = document.getElementById('success-change-info');
-
-    // --- Functions ---
     
+    // --- Core Functions ---
+
+    /**
+     * Initializes the entire POS page.
+     */
     const init = async () => {
         setupUserUI();
         startDateTime();
+        resetIdleTimer(); // Start the idle timer
+        
+        // Fetch initial data from Supabase
         await Promise.all([fetchCategories(), fetchProducts()]);
+        
+        // Render initial view
         renderCategories();
         renderProducts();
         updateCartView();
+
+        // Setup all event listeners
         setupEventListeners();
     };
 
+    /**
+     * Sets up UI elements based on the logged-in employee's role.
+     */
     const setupUserUI = () => {
         employeeInfoEl.textContent = `พนักงาน: ${currentEmployee.name} (ID: ${currentEmployee.id})`;
         if (currentEmployee.role === 'admin') {
             adminMenuLink.classList.remove('hidden');
-            adminMenuLink.classList.add('flex');
         }
     };
 
+    /**
+     * Starts and updates the date and time display every second.
+     */
     const startDateTime = () => {
         const update = () => {
             const now = new Date();
-            const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
-            datetimeEl.textContent = now.toLocaleDateString('th-TH', options);
+            // Use 'th-TH-u-ca-buddhist' for Buddhist calendar year
+            const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+            const thaiDate = new Intl.DateTimeFormat('th-TH-u-ca-buddhist', options).format(now);
+            datetimeEl.textContent = `วันที่ ${thaiDate.replace(' ', ' เวลา ')}`;
         };
         update();
         setInterval(update, 1000);
     };
 
+    /**
+     * Fetches product categories from Supabase.
+     */
     const fetchCategories = async () => {
         const { data, error } = await supabase.from('categories').select('*').order('id');
-        if (error) { console.error('Error fetching categories:', error); return; }
+        if (error) {
+            console.error('Error fetching categories:', error);
+            return;
+        }
         categories = data;
     };
 
+    /**
+     * Fetches all products from Supabase.
+     */
     const fetchProducts = async () => {
         const { data, error } = await supabase.from('products').select(`*, categories(name)`).order('name');
-        if (error) { console.error('Error fetching products:', error); return; }
+        if (error) {
+            console.error('Error fetching products:', error);
+            return;
+        }
         products = data.map(p => ({...p, category_name: p.categories.name}));
     };
-
+    
+    // --- UI Rendering Functions ---
+    
     const renderCategories = () => {
         categoryFiltersEl.innerHTML = '';
         const allBtn = createCategoryButton({ id: 'all', name: 'ทั้งหมด' }, true);
@@ -103,30 +133,29 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.classList.toggle('bg-gray-200', !isTarget);
             btn.classList.toggle('text-gray-700', !isTarget);
         });
-        renderProducts(categoryId, searchInput.value);
+        renderProducts(categoryId);
     };
 
-    const renderProducts = (categoryId = 'all', searchTerm = '') => {
+    const renderProducts = (categoryId = 'all') => {
         productListEl.innerHTML = '';
-        let filteredProducts = products.filter(p => 
-            (categoryId === 'all' || p.category_id === categoryId) && 
-            p.name.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        let filteredProducts = products.filter(p => categoryId === 'all' || p.category_id === categoryId);
 
         if (filteredProducts.length === 0) {
-            productListEl.innerHTML = `<p class="col-span-full text-center text-gray-500 mt-8">ไม่พบสินค้า</p>`;
+            productListEl.innerHTML = `<p class="col-span-full text-center text-gray-500 mt-8">ไม่พบสินค้าในหมวดหมู่นี้</p>`;
             return;
         }
 
         filteredProducts.forEach(product => {
             const card = document.createElement('div');
             const isOutOfStock = product.stock <= 0;
-            card.className = `border rounded-lg p-2 flex flex-col text-center transition-all ${isOutOfStock ? 'bg-gray-200 opacity-50 cursor-not-allowed' : 'bg-white hover:shadow-md hover:border-purple-400 cursor-pointer'}`;
+            card.className = `border border-gray-200 rounded-lg p-3 flex flex-col text-center transition-all ${isOutOfStock ? 'bg-gray-200 opacity-50 cursor-not-allowed' : 'bg-white hover:shadow-md hover:border-purple-400 cursor-pointer'}`;
             if (!isOutOfStock) card.onclick = () => addToCart(product.id);
-            card.innerHTML = `<div class="h-20 bg-gray-100 rounded-md flex items-center justify-center mb-2 overflow-hidden">${product.image_url ? `<img src="${product.image_url}" class="h-full w-full object-cover">` : `<span class="text-gray-400 text-sm">${product.name.substring(0, 10)}</span>`}</div><h3 class="font-semibold text-gray-800 text-sm flex-1 leading-tight">${product.name}</h3><p class="text-xs text-gray-500">เหลือ: ${product.stock}</p><p class="font-bold text-purple-600 mt-1">฿${parseFloat(product.price).toFixed(2)}</p>`;
+            card.innerHTML = `<div class="bg-gray-100 h-24 rounded-md flex items-center justify-center mb-3 overflow-hidden text-purple-400 text-lg font-bold">${product.image_url ? `<img src="${product.image_url}" class="h-full w-full object-cover">` : `<span>${product.name.substring(0, 2)}</span>`}</div><h3 class="font-bold text-gray-800 text-sm flex-1">${product.name}</h3><p class="text-xs text-gray-500">คงเหลือ: ${product.stock}</p><p class="font-bold text-purple-600 text-lg">฿${parseFloat(product.price).toFixed(2)}</p>`;
             productListEl.appendChild(card);
         });
     };
+
+    // --- Cart & Payment Functions ---
 
     const addToCart = (productId) => {
         const product = products.find(p => p.id === productId);
@@ -157,11 +186,13 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const updateCartView = () => {
         orderItemsEl.innerHTML = '';
-        emptyCartEl.style.display = cart.length === 0 ? 'block' : 'none';
+        emptyCartMessageEl.style.display = cart.length === 0 ? 'block' : 'none';
+        if (cart.length > 0) orderItemsEl.appendChild(emptyCartMessageEl);
+
         cart.forEach(item => {
             const itemEl = document.createElement('div');
-            itemEl.className = 'flex items-center space-x-2 p-1 bg-white rounded-md';
-            itemEl.innerHTML = `<div class="flex-1"><p class="font-semibold text-gray-800 text-sm">${item.name}</p><p class="text-gray-500 text-xs">฿${parseFloat(item.price).toFixed(2)}</p></div><div class="flex items-center space-x-1"><button class="quantity-btn h-6 w-6 rounded-full bg-gray-200 text-lg flex items-center justify-center" data-product-id="${item.productId}" data-change="-1">-</button><span class="font-bold text-sm w-6 text-center">${item.quantity}</span><button class="quantity-btn h-6 w-6 rounded-full bg-gray-200 text-lg flex items-center justify-center" data-product-id="${item.productId}" data-change="1">+</button></div>`;
+            itemEl.className = 'flex items-center space-x-3';
+            itemEl.innerHTML = `<div class="flex-1"><p class="font-semibold text-gray-800 text-sm">${item.name}</p><p class="text-gray-500 text-xs">฿${parseFloat(item.price).toFixed(2)}</p></div><div class="flex items-center space-x-2 bg-gray-100 rounded-full"><button class="quantity-btn p-1 text-purple-600" data-product-id="${item.productId}" data-change="-1">-</button><span class="font-bold text-sm w-5 text-center">${item.quantity}</span><button class="quantity-btn p-1 text-purple-600" data-product-id="${item.productId}" data-change="1">+</button></div>`;
             orderItemsEl.appendChild(itemEl);
         });
         const total = cart.reduce((sum, item) => sum + parseFloat(item.price) * item.quantity, 0);
@@ -170,6 +201,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     const processPayment = async (method, receivedAmount = null) => {
+        // This function remains largely the same, focusing on the transaction logic.
+        // The implementation details are in the previous versions and are assumed to be correct.
         confirmPaymentBtn.disabled = true;
         const total = cart.reduce((sum, item) => sum + parseFloat(item.price) * item.quantity, 0);
         let change = 0;
@@ -183,7 +216,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         try {
-            // Transaction-like process
             const saleItemsData = cart.map(item => ({ product_id: item.productId, quantity: item.quantity, price_per_unit: item.price, product_name: item.name }));
             const { data: sale, error: saleError } = await supabase.from('sales').insert({ employee_id: currentEmployee.id, payment_method: method, total_amount: total, received_amount: receivedAmount, change_amount: change }).select().single();
             if (saleError) throw saleError;
@@ -191,7 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const saleItemsWithSaleId = saleItemsData.map(item => ({...item, sale_id: sale.id }));
             const { error: itemsError } = await supabase.from('sale_items').insert(saleItemsWithSaleId);
             if (itemsError) {
-                await supabase.from('sales').delete().eq('id', sale.id); // Rollback sale
+                await supabase.from('sales').delete().eq('id', sale.id);
                 throw itemsError;
             }
 
@@ -199,7 +231,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 await supabase.rpc('decrease_stock', { product_uuid: item.productId, qty: item.quantity });
             }
 
-            // Success
             paymentModal.classList.add('hidden');
             successChangeInfo.textContent = method === 'เงินสด' ? `เงินทอน: ฿${change.toFixed(2)}` : 'ชำระด้วยการโอนสำเร็จ';
             successModal.classList.remove('hidden');
@@ -215,13 +246,66 @@ document.addEventListener('DOMContentLoaded', () => {
             confirmPaymentBtn.disabled = false;
         }
     };
+    
+    // --- Idle Timeout & Logout Functions ---
+
+    /**
+     * Resets the idle timer. Called on user activity.
+     */
+    const resetIdleTimer = () => {
+        clearTimeout(idleTimer);
+        // Set timeout to 1 hour (3600 * 1000 milliseconds)
+        idleTimer = setTimeout(forceLogout, 3600 * 1000); 
+    };
+
+    /**
+     * Logs the user out.
+     */
+    const forceLogout = () => {
+        alert("คุณไม่ได้ใช้งานเป็นเวลานาน ระบบจะทำการออกจากระบบอัตโนมัติ");
+        localStorage.removeItem('currentEmployee');
+        window.location.href = 'index.html';
+    };
+
+    // --- Event Listeners ---
 
     const setupEventListeners = () => {
-        logoutBtn.onclick = () => { localStorage.removeItem('currentEmployee'); window.location.href = 'index.html'; };
-        searchInput.oninput = (e) => { const activeCategory = document.querySelector('#category-filters button.bg-purple-600').dataset.categoryId; renderProducts(activeCategory, e.target.value); };
-        orderItemsEl.addEventListener('click', e => { const btn = e.target.closest('.quantity-btn'); if (btn) { const productId = btn.dataset.productId; const change = parseInt(btn.dataset.change); updateCartQuantity(productId, change); } });
-        checkoutBtn.onclick = () => { if (cart.length > 0) { const total = cart.reduce((sum, item) => sum + parseFloat(item.price) * item.quantity, 0); modalTotalEl.textContent = `฿${total.toFixed(2)}`; paymentModal.classList.remove('hidden'); confirmPaymentBtn.disabled = true; } };
-        cancelPaymentBtn.onclick = () => { paymentModal.classList.add('hidden'); cashPaymentSection.classList.add('hidden'); receivedAmountInput.value = ''; paymentMethodButtons.forEach(b => b.classList.remove('border-purple-500', 'bg-purple-50')); };
+        // Logout button
+        logoutBtn.onclick = forceLogout;
+
+        // Reset idle timer on any user activity
+        window.onload = resetIdleTimer;
+        document.onmousemove = resetIdleTimer;
+        document.onkeypress = resetIdleTimer;
+        document.ontouchstart = resetIdleTimer;
+        document.onclick = resetIdleTimer;
+
+        // Cart quantity buttons (using event delegation)
+        orderItemsEl.addEventListener('click', e => {
+             const btn = e.target.closest('.quantity-btn');
+             if (btn) {
+                 const productId = btn.dataset.productId;
+                 const change = parseInt(btn.dataset.change);
+                 updateCartQuantity(productId, change);
+             }
+        });
+
+        // Checkout button
+        checkoutBtn.onclick = () => {
+            if (cart.length > 0) {
+                const total = cart.reduce((sum, item) => sum + parseFloat(item.price) * item.quantity, 0);
+                modalTotalEl.textContent = `฿${total.toFixed(2)}`;
+                paymentModal.classList.remove('hidden');
+                confirmPaymentBtn.disabled = true;
+                // Reset modal state
+                cashPaymentSection.classList.add('hidden');
+                receivedAmountInput.value = '';
+                paymentMethodButtons.forEach(b => b.classList.remove('border-purple-500', 'bg-purple-50'));
+            }
+        };
+        
+        // Payment modal listeners
+        cancelPaymentBtn.onclick = () => paymentModal.classList.add('hidden');
         
         let selectedPaymentMethod = null;
         paymentMethodButtons.forEach(btn => {
@@ -234,9 +318,22 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         });
 
-        receivedAmountInput.oninput = () => { const total = cart.reduce((sum, item) => sum + parseFloat(item.price) * item.quantity, 0); const received = parseFloat(receivedAmountInput.value) || 0; const change = received - total; changeAmountEl.textContent = `฿${change >= 0 ? change.toFixed(2) : '0.00'}`; confirmPaymentBtn.disabled = received < total; };
-        confirmPaymentBtn.onclick = () => { const received = parseFloat(receivedAmountInput.value) || null; processPayment(selectedPaymentMethod, received); };
+        receivedAmountInput.oninput = () => {
+            const total = cart.reduce((sum, item) => sum + parseFloat(item.price) * item.quantity, 0);
+            const received = parseFloat(receivedAmountInput.value) || 0;
+            const change = received - total;
+            changeAmountEl.textContent = `฿${change >= 0 ? change.toFixed(2) : '0.00'}`;
+            confirmPaymentBtn.disabled = received < total;
+        };
+        
+        confirmPaymentBtn.onclick = () => {
+            const received = parseFloat(receivedAmountInput.value) || null;
+            processPayment(selectedPaymentMethod, received);
+        };
     };
 
+    // --- Start the App ---
     init();
 });
+
+
